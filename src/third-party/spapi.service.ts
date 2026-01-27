@@ -7,6 +7,24 @@ interface LWATokenResponse {
   expires_in: number;
 }
 
+interface marketplaceResponse {
+  payload: {
+    marketplace: {
+      id: string;
+      countryCode: string;
+      name: string;
+      defaultCurrencyCode: string;
+      defaultLanguageCode: string;
+      domainName: string;
+    };
+    storeName: string;
+    participation: {
+      isParticipating: boolean;
+      hasSuspendedListings: boolean;
+    }
+  }[];
+}
+
 export class SPApiService {
   private client: AxiosInstance;
   private accessToken: string | null = null;
@@ -23,7 +41,10 @@ export class SPApiService {
         await this.refreshAccessToken();
       }
       if (this.accessToken) {
+        config.headers['host'] = 'sellingpartnerapi-na.amazon.com';
         config.headers['x-amz-access-token'] = this.accessToken;
+        config.headers['x-amz-date'] = new Date().toISOString();
+        config.headers['user-agent'] = 'PureScan/1.0';
       }
       return config;
     });
@@ -35,17 +56,15 @@ export class SPApiService {
       const clientSecret = process.env.SP_API_CLIENT_SECRET;
       const refreshToken = process.env.SP_API_REFRESH_TOKEN;
 
-      if (!clientId || !clientSecret) {
+      if (!clientId || !clientSecret || !refreshToken) {
         throw new Error('SP-API credentials not configured');
       }
 
       const params = new URLSearchParams();
-      params.append('grant_type', refreshToken ? 'refresh_token' : 'client_credentials');
+      params.append('grant_type', 'refresh_token');
       params.append('client_id', clientId);
       params.append('client_secret', clientSecret);
-      if (refreshToken) {
-        params.append('refresh_token', refreshToken);
-      }
+      params.append('refresh_token', refreshToken);
 
       const response = await axios.post<LWATokenResponse>(
         'https://api.amazon.com/auth/o2/token',
@@ -64,6 +83,19 @@ export class SPApiService {
     } catch (error: any) {
       console.error('Failed to refresh SP-API token:', error.message);
       throw new Error('SP-API authentication failed');
+    }
+  }
+
+  async getMarketplaceParticipations(): Promise<marketplaceResponse> {
+    try {
+      const res = await this.client.get('sellers/v1/marketplaceParticipations');
+      if (res?.data && res.data?.payload && Array.isArray(res.data.payload) && res.data.payload.length > 0) {
+        return res.data.payload;
+      }
+      return { payload: [] };
+    } catch (error: any) {
+      console.error('Failed to get market place ID:', error.message);
+      throw new Error('Failed to get market place ID');
     }
   }
 
