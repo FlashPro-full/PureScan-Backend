@@ -25,5 +25,7 @@ export class Subscription extends Model {
   @Column({ type: 'timestamp', nullable: true })
   expiresAt: Date;
 
+  @Column({ type: 'boolean', default: false })
+  trialAcknowledged: boolean;
 }
 

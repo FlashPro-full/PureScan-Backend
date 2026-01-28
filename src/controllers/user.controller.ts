@@ -5,7 +5,7 @@ import {
   findUserByCondition,
   updateUser,
 } from "../services/user.service";
-import { findSubscriptionByUserId } from "../services/subscription.service";
+import { findSubscriptionByUserId, updateSubscription } from "../services/subscription.service";
 
 export const getTeam = async (req: AuthRequest, res: Response) => {
   try {
@@ -73,7 +73,10 @@ export const getTrialStatus = async (req: AuthRequest, res: Response) => {
     const subscription = await findSubscriptionByUserId(Number(userId));
 
     if (!subscription) {
-      return res.status(200).json({ status: "expired" });
+      return res.status(200).json({
+        result: true,
+        status: "expired"
+      });
     }
 
     const now = new Date();
@@ -85,25 +88,58 @@ export const getTrialStatus = async (req: AuthRequest, res: Response) => {
         const daysLeft = Math.ceil(
           (end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
         );
-        return res.status(200).json({ status: "trialing", daysLeft });
+        return res.status(200).json({
+          result: true,
+          status: "trialing",
+          daysLeft
+        });
       }
-      return res.status(200).json({ status: "expired" });
+      return res.status(200).json({
+        result: true,
+        status: "expired"
+      });
     }
 
     if (subStatus === "active" || subStatus === "past_due") {
-      return res.status(200).json({ status: "active" });
+      return res.status(200).json({
+        result: true,
+        status: "active"
+      });
     }
 
     if (subscription.expiresAt && new Date(subscription.expiresAt) <= now) {
-      return res.status(200).json({ status: "expired" });
+      return res.status(200).json({
+        result: true,
+        status: "expired"
+      });
     }
 
-    return res.status(200).json({ status: "expired" });
+    return res.status(200).json({
+      result: true,
+      status: "expired"
+    });
   } catch (error: any) {
     console.error("Get trial status error:", error);
     res.status(500).json({
       result: false,
       error: "Failed to get trial status",
+    });
+  }
+};
+
+export const acknowledgeTrial = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    await updateSubscription(Number(userId), { trialAcknowledged: true });
+    res.status(200).json({
+      result: true,
+      message: "Trial acknowledged"
+    });
+  } catch (error: any) {
+    console.error("Acknowledge trial error:", error);
+    res.status(500).json({
+      result: false,
+      error: "Failed to acknowledge trial"
     });
   }
 };

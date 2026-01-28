@@ -12,6 +12,7 @@ import { Subscription } from "./entities/subscription.entity";
 import { TriggerGroup } from "./entities/group.entity";
 import { TriggerRule } from "./entities/rule.entity";
 import { Team } from "./entities/team.entity";
+import { Amazon } from "./entities/amazon.entity";
 
 export const AppDataSource = new DataSource({
   type: "postgres",
@@ -28,6 +29,7 @@ export const AppDataSource = new DataSource({
     TriggerGroup,
     TriggerRule,
     Team,
+    Amazon,
   ],
   migrations: ["src/migrations/**/*.ts"],
 });

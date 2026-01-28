@@ -7,3 +7,4 @@ export * from './subscription.entity';
 export * from './group.entity';
 export * from './rule.entity';
 export * from './team.entity';
+export * from './amazon.entity';
