@@ -6,6 +6,7 @@ import {
   saveUser,
   updateUser,
 } from "../services/user.service";
+import { createSubscription } from "../services/subscription.service";
 import {
   sendPasswordResetEmail,
   isSMTPConfigured,
@@ -54,6 +55,7 @@ export const register = async (req: Request, res: Response) => {
     };
 
     const savedUser = await saveUser(user);
+    await createSubscription(savedUser.id);
 
     const token = jwt.sign(
       {
@@ -293,7 +295,7 @@ export const resetPassword = async (req: Request, res: Response) => {
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     user.password = hashedPassword;
-    await updateUser(user);
+    await updateUser({ id: Number(user.id), password: hashedPassword });
 
     resetCodes.delete(email.toLowerCase());
 

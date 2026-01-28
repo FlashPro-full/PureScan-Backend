@@ -17,7 +17,7 @@ export const saveUser = async (user: Partial<User>) => {
 export const updateUser = async (user: Partial<User>) => {
     let result = null;
 
-    result = await userRepo.update(Number(user.id), user);
+    result = await userRepo.update({ id: user.id }, user);
 
     return result;
 }
