@@ -57,25 +57,9 @@ export const register = async (req: Request, res: Response) => {
     const savedUser = await saveUser(user);
     await createSubscription(savedUser.id);
 
-    const token = jwt.sign(
-      {
-        id: savedUser.id,
-        email: savedUser.email,
-        role: savedUser.role,
-      },
-      process.env.JWT_SECRET || "your-secret-key",
-      { expiresIn: "2h" }
-    );
-
     res.status(200).json({
       result: true,
-      user: {
-        id: savedUser.id,
-        email: savedUser.email,
-        name: savedUser.name,
-        role: savedUser.role,
-      },
-      token,
+      message: "User registered successfully",
     });
   } catch (error: any) {
     console.error("Registration error:", error);
@@ -85,6 +69,131 @@ export const register = async (req: Request, res: Response) => {
     });
   }
 };
+
+export const sendVerificationCode = async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        result: false,
+        error: "Email is required",
+      });
+    }
+
+    if (!isSMTPConfigured()) {
+      return res.status(501).json({
+        result: false,
+        error: "Not Implemented",
+      });
+    }
+
+    cleanupExpiredCodes();
+
+    const user = await findUserByCondition({ email });
+
+    if (!user) {
+      return res.status(404).json({
+        result: false,
+        error: "User not found",
+      });
+    }
+
+    const code = generateResetCode();
+    const expiresAt = Date.now() + 15 * 60 * 1000;
+
+    resetCodes.set(email.toLowerCase(), { code, expiresAt });
+
+    try {
+      await sendPasswordResetEmail(email, code);
+    } catch (error: any) {
+      console.error("Failed to send email:", error);
+      resetCodes.delete(email.toLowerCase());
+      return res
+        .status(500)
+        .json({ error: "Failed to send reset code. Please try again later." });
+    }
+
+    res.status(200).json({
+      result: true,
+      message: "If the email exists, a reset code has been sent",
+    });
+  } catch (error: any) {
+    console.error("Forgot password error:", error);
+    res.status(500).json({
+      result: false,
+      error: "Failed to process password reset request",
+    });
+  }
+};
+
+export const verify = async (req: Request, res: Response) => {
+  try {
+    const { email, code } = req.body;
+
+    if (!email || !code) {
+      return res.status(400).json({
+        result: false,
+        error: "Email and code are required",
+      });
+    }
+
+    if (!isSMTPConfigured()) {
+      return res.status(501).json({
+        result: false,
+        error: "Not Implemented",
+      });
+    }
+
+    cleanupExpiredCodes();
+
+    const storedData = resetCodes.get(email.toLowerCase());
+
+    if (!storedData) {
+      return res.status(400).json({
+        result: false,
+        error: "Invalid or expired verification code",
+      });
+    }
+
+    if (storedData.expiresAt < Date.now()) {
+      resetCodes.delete(email.toLowerCase());
+      return res.status(400).json({
+        result: false,
+        error: "Verification code has expired",
+      });
+    }
+
+    if (storedData.code !== code) {
+      return res.status(400).json({
+        result: false,
+        error: "Invalid verification code",
+      });
+    }
+
+    const user = await findUserByCondition({ email });
+
+    if (!user) {
+      return res.status(404).json({
+        result: false,
+        error: "User not found",
+      });
+    }
+
+    resetCodes.delete(email.toLowerCase());
+
+    res.status(200).json({
+      result: true,
+      message: "Email verified successfully",
+    });
+  } catch (error: any) {
+    console.error("Verify error:", error);
+    res.status(500).json({
+      result: false,
+      error: "Failed to verify email",
+    });
+  }
+}
 
 export const login = async (req: Request, res: Response) => {
   try {
@@ -172,63 +281,6 @@ export const getMe = async (req: Request, res: Response) => {
     res.status(500).json({
       result: false,
       error: "Failed to get user",
-    });
-  }
-};
-
-export const forgotPassword = async (req: Request, res: Response) => {
-  try {
-    const { email } = req.body;
-
-    if (!email) {
-      return res.status(400).json({
-        result: false,
-        error: "Email is required",
-      });
-    }
-
-    if (!isSMTPConfigured()) {
-      return res.status(501).json({
-        result: false,
-        error: "Not Implemented",
-      });
-    }
-
-    cleanupExpiredCodes();
-
-    const user = await findUserByCondition({ email });
-
-    if (!user) {
-      return res.status(404).json({
-        result: false,
-        error: "User not found",
-      });
-    }
-
-    const code = generateResetCode();
-    const expiresAt = Date.now() + 15 * 60 * 1000;
-
-    resetCodes.set(email.toLowerCase(), { code, expiresAt });
-
-    try {
-      await sendPasswordResetEmail(email, code);
-    } catch (error: any) {
-      console.error("Failed to send email:", error);
-      resetCodes.delete(email.toLowerCase());
-      return res
-        .status(500)
-        .json({ error: "Failed to send reset code. Please try again later." });
-    }
-
-    res.status(200).json({
-      result: true,
-      message: "If the email exists, a reset code has been sent",
-    });
-  } catch (error: any) {
-    console.error("Forgot password error:", error);
-    res.status(500).json({
-      result: false,
-      error: "Failed to process password reset request",
     });
   }
 };
