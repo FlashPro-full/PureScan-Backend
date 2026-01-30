@@ -7,7 +7,6 @@ import {
     updateAmazonById,
     deleteAmazonById
 } from '../services/amazon.service';
-import { SPApiService } from '../third-party/spapi.service';
 
 export const createAmazonHandler = async (req: AuthRequest, res: Response) => {
     try {

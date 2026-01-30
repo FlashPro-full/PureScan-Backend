@@ -66,7 +66,7 @@ export const createScan = async (req: AuthRequest, res: Response) => {
         const author = attributes.author?.[0]?.value;
         const publisher = attributes.manufacturer?.[0]?.value;
         const category = productTypesList?.[0]?.productType;
-        const platform = (attributes.platform || attributes.computer_platform || attributes.video_game_platform)[0]?.value || null;
+        const platform = attributes.platform?.[0]?.value || attributes.computer_platform?.[0]?.value || attributes.video_game_platform?.[0]?.value || null;
         const itemType = attributes.item_type_keyword?.[0]?.value;
         const weight = {
           unit: attributes.item_weight?.[0]?.unit,
@@ -116,7 +116,7 @@ export const createScan = async (req: AuthRequest, res: Response) => {
     const newScan: any = {
       user: { id: userId },
       product: { id: product.id },
-      recommendation: recommendation,
+      recommendation: Recommendation.KEEP,
       scannedPrice: scannedPrice
     }
 
