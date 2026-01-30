@@ -1,6 +1,5 @@
 import { Entity, Column, OneToMany, OneToOne } from 'typeorm';
 import { Scan } from './scan.entity';
-import { Inventory } from './inventory.entity';
 import { Subscription } from './subscription.entity';
 import { Team } from './team.entity';
 import { Amazon } from './amazon.entity';
@@ -54,9 +53,6 @@ export class User extends Model {
 
   @OneToMany(() => Scan, (scan) => scan.user)
   scans: Scan[];
-
-  @OneToMany(() => Inventory, (inventory) => inventory.user)
-  inventories: Inventory[];
 
   @OneToMany(() => Subscription, (subscription) => subscription.user)
   subscriptions: Subscription[];
