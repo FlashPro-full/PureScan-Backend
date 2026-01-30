@@ -5,7 +5,6 @@ dotenv.config();
 import { DataSource } from "typeorm";
 import { User } from "./entities/user.entity";
 import { Scan } from "./entities/scan.entity";
-import { Inventory } from "./entities/inventory.entity";
 import { Product } from "./entities/product.entity";
 import { ProductPricing } from "./entities/pricing.entity";
 import { Subscription } from "./entities/subscription.entity";
@@ -22,7 +21,6 @@ export const AppDataSource = new DataSource({
   entities: [
     User,
     Scan,
-    Inventory,
     Product,
     ProductPricing,
     Subscription,

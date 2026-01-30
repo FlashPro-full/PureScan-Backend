@@ -1,5 +1,6 @@
 import { Entity, Column, OneToMany, Index } from 'typeorm';
 import { ProductPricing } from './pricing.entity';
+import { Scan } from './scan.entity';
 
 import Model from './model.entity';
 
@@ -15,17 +16,13 @@ export class Product extends Model {
   asin: string;
 
   @Column({ type: 'varchar', nullable: true })
-  upc: string;
-
-  @Column({ type: 'varchar', nullable: true })
-  ean: string;
-
-  @Column({ type: 'varchar', nullable: true })
-  @Index()
-  isbn: string;
-
-  @Column({ type: 'varchar', nullable: true })
   title: string;
+
+  @Column({ type: 'varchar', nullable: true })
+  category: string;
+
+  @Column({ type: 'varchar', nullable: true })
+  itemType: string;
 
   @Column({ type: 'varchar', nullable: true })
   author: string;
@@ -34,34 +31,47 @@ export class Product extends Model {
   publisher: string;
 
   @Column({ type: 'varchar', nullable: true })
-  category: string;
+  platform: string;
 
   @Column({ type: 'varchar', nullable: true })
-  itemType: string;
-
-  @Column({ type: 'text', nullable: true })
-  description: string;
+  image: string;
 
   @Column({ type: 'jsonb', nullable: true })
-  images: string[];
+  dimensions: {
+    length: {
+      value: number;
+      unit: string;
+    };
+    width: {
+      value: number;
+      unit: string;
+    };
+    height: {
+      value: number;
+      unit: string;
+    };
+  }
 
-  @Column({ type: 'decimal', nullable: true })
-  dimensionsLength: number;
-
-  @Column({ type: 'decimal', nullable: true })
-  dimensionsWidth: number;
-
-  @Column({ type: 'decimal', nullable: true })
-  dimensionsHeight: number;
-
-  @Column({ type: 'decimal', nullable: true })
-  weightOz: number;
+  @Column({ type: 'jsonb', nullable: true })
+  weight: {
+    value: number;
+    unit: string;
+  };
 
   @Column({ type: 'varchar', nullable: true })
   salesRank: string;
 
+  @Column({ type: 'jsonb', nullable: true })
+  listPrice: {
+    amount: number;
+    currency: string;
+  };
+
   @OneToMany(() => ProductPricing, (pricing) => pricing.product)
   pricings: ProductPricing[];
+
+  @OneToMany(() => Scan, (scan) => scan.product)
+  scans: Scan[];
 
 }
 

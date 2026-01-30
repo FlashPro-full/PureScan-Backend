@@ -9,7 +9,7 @@ router.post('/code', sendVerificationCode);
 router.post('/verify', verify);
 router.post('/login', login);
 router.get('/me', authenticate, getMe);
-router.post('/reset-password', resetPassword);
+router.post('/reset-password', authenticate, resetPassword);
 
 export default router;
 

@@ -7,13 +7,14 @@ import {
     updateAmazonById,
     deleteAmazonById
 } from '../services/amazon.service';
+import { SPApiService } from '../third-party/spapi.service';
 
 export const createAmazonHandler = async (req: AuthRequest, res: Response) => {
     try {
         const userId = Number(req.user!.id);
         const { clientId, clientSecret, refreshToken } = req.body;
 
-        if(!clientId || !clientSecret || !refreshToken) {
+        if (!clientId || !clientSecret || !refreshToken) {
             return res.status(400).json({
                 result: false,
                 error: "Client ID, client secret, and refresh token are required",
@@ -21,8 +22,8 @@ export const createAmazonHandler = async (req: AuthRequest, res: Response) => {
         }
 
         const amazon = await findAmazonByUserId(userId);
-        
-        if(amazon) {
+
+        if (amazon) {
             return res.status(400).json({
                 result: false,
                 error: "Amazon already exists",
@@ -35,7 +36,7 @@ export const createAmazonHandler = async (req: AuthRequest, res: Response) => {
             clientSecret,
             refreshToken
         };
-        
+
         const newItem = await saveAmazon(newAmazon);
 
         res.status(201).json({
@@ -52,13 +53,15 @@ export const createAmazonHandler = async (req: AuthRequest, res: Response) => {
     }
 }
 
-export const getTotalAmazonCountHandler = async (_req: Request, res: Response) => {
+export const getIsLimitedHandler = async (_req: Request, res: Response) => {
     try {
         const totalAmazonCount = await getTotalAmazonCount();
-        
+
+        const IsLimited = totalAmazonCount > 10 ? true : false;
+
         res.status(200).json({
             result: true,
-            totalAmazonCount: totalAmazonCount,
+            limit: IsLimited,
         });
     } catch (error: any) {
         console.error("Get total Amazon count error:", error);
@@ -69,18 +72,62 @@ export const getTotalAmazonCountHandler = async (_req: Request, res: Response) =
     }
 }
 
+export const getIsConnectedByUserHandler = async (req: AuthRequest, res: Response) => {
+    try {
+        const count = await getTotalAmazonCount()
+
+        const isConnected = count > 0 ? true : false;
+
+        res.status(200).json({
+            result: true,
+            connect: isConnected,
+        });
+    } catch (error: any) {
+        console.error("Get Amazon is connected error:", error);
+        res.status(500).json({
+            result: false,
+            error: "Failed to get Amazon is connected",
+        });
+    }
+}
+
+export const getIsConnectedByAdminHandler = async (req: AuthRequest, res: Response) => {
+    try {
+        const userId = Number(req.user!.id);
+        const amazon = await findAmazonByUserId(userId);
+
+        if (!amazon) {
+            return res.status(200).json({
+                result: true,
+                connect: false,
+            });
+        }
+
+        res.status(200).json({
+            result: true,
+            connect: true,
+        });
+    } catch (error: any) {
+        console.error("Get Amazon is connected by admin error:", error);
+        res.status(500).json({
+            result: false,
+            error: "Failed to get Amazon is connected by admin",
+        });
+    }
+}
+
 export const getAmazonHandler = async (req: AuthRequest, res: Response) => {
     try {
         const userId = Number(req.user!.id);
         const amazon = await findAmazonByUserId(userId);
-        
-        if(!amazon) {
+
+        if (!amazon) {
             return res.status(404).json({
                 result: false,
                 error: "Amazon not found",
             });
         }
-        
+
         res.status(200).json({
             result: true,
             amazon: amazon,
@@ -99,21 +146,21 @@ export const updateAmazonHandler = async (req: Request, res: Response) => {
         const { id } = req.params;
         const { clientId, clientSecret, refreshToken } = req.body;
 
-        if(!clientId || !clientSecret || !refreshToken) {
+        if (!clientId || !clientSecret || !refreshToken) {
             return res.status(400).json({
                 result: false,
                 error: "Client ID, client secret, and refresh token are required",
             });
         }
-        
+
         const updatedAmazon: any = {
             clientId,
             clientSecret,
             refreshToken
         };
-        
+
         const updatedItem = await updateAmazonById(Number(id), updatedAmazon);
-        
+
         res.status(200).json({
             result: true,
             amazon: updatedItem,

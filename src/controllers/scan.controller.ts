@@ -1,71 +1,139 @@
 import { Response } from "express";
 import { AuthRequest } from "../middleware/auth.middleware";
 import { saveScan, findScanListByUserId } from "../services/scan.service";
-import {
-  findInventoryByCondition,
-  saveInventory,
-} from "../services/inventory.service";
-import { Rating } from "../entities/inventory.entity";
+import { SPApiService } from "../third-party/spapi.service";
+import { findAdminByUserId } from "../services/user.service";
+import { findAmazonByUserId } from "../services/amazon.service";
+import { findProductByCondition, saveProduct } from "../services/product.service";
+import { Recommendation } from "../entities/scan.entity";
 
 export const createScan = async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user!.id;
-    const { type, title, barcode, metadata } = req.body;
+    const userId = Number(req.user!.id);
 
-    if (!barcode || !title) {
+    const { barcode } = req.body;
+
+    if (!barcode) {
       return res.status(400).json({
         result: false,
-        error: "Barcode and title are required",
+        error: "Barcode is required",
       });
     }
 
-    const scan: any = {
-      userId,
-      barcode,
-      title,
-      category: metadata?.category || null,
-      itemType: type || "other",
-      currentPrice: metadata?.currentPrice || null,
-      suggestedPrice: metadata?.suggestedPrice || null,
-      profit: metadata?.profit || null,
-      recommendation: metadata?.recommendation || "discard",
-      metadata,
-      scannedAt: new Date(),
-    };
+    let adminId = -1;
 
-    const savedScan = await saveScan(scan);
+    if (req.user?.role === 'user') {
+      const user = await findAdminByUserId(userId);
+      adminId = user?.admin?.id || -1;
+    } else {
+      adminId = userId;
+    }
 
-    if (metadata?.recommendation === "keep") {
-      const existingInventory = await findInventoryByCondition({
-        user: { id: Number(userId) },
-        barcode,
+    const amazon = await findAmazonByUserId(adminId);
+
+    if (!amazon) {
+      return res.status(404).json({
+        result: false,
+        error: "Amazon credentials not found",
       });
+    }
 
-      if (!existingInventory) {
-        const inventoryItem = {
-          userId,
-          barcode,
-          title,
-          author: metadata?.author || null,
-          category: metadata?.category || null,
-          image: metadata?.image || null,
-          scannedPrice: metadata?.currentPrice || 0,
-          rating: Rating.FBA,
-          timestamp: new Date(),
+    let product = await findProductByCondition({ barcode });
+    let scannedPrice = 0.1;
+    let recommendation = Recommendation.DISCARD;
+
+    if (!product) {
+      try {
+        const spApiService = new SPApiService(amazon.clientId, amazon.clientSecret, amazon.refreshToken);
+        const spProduct = await spApiService.lookupProduct(barcode)
+
+        if (spProduct?.numberOfResults === 0) {
+          return res.status(404).json({
+            result: false,
+            error: "Product not found",
+          });
+        }
+
+        const item = spProduct.items[0];
+        const attributes = item.attributes || {};
+        const dimensionsList = Array.isArray(attributes.item_dimensions) ? attributes.item_dimensions : [];
+        const imagesList = Array.isArray(item.images) ? item.images : [];
+        const productTypesList = Array.isArray(item.productTypes) ? item.productTypes : [];
+        const salesRanksList = Array.isArray(item.salesRanks) ? item.salesRanks : [];
+
+        const asin = item.asin;
+        const title = attributes.item_name?.[0]?.value;
+        const author = attributes.author?.[0]?.value;
+        const publisher = attributes.manufacturer?.[0]?.value;
+        const category = productTypesList?.[0]?.productType;
+        const platform = (attributes.platform || attributes.computer_platform || attributes.video_game_platform)[0]?.value || null;
+        const itemType = attributes.item_type_keyword?.[0]?.value;
+        const weight = {
+          unit: attributes.item_weight?.[0]?.unit,
+          value: attributes.item_weight?.[0]?.value,
+        }
+        const dimensions = {
+          length: dimensionsList?.[0].length,
+          width: dimensionsList?.[0].width,
+          height: dimensionsList?.[0].height,
         };
-        await saveInventory(inventoryItem);
+        const displayGroupRank = salesRanksList?.[0]?.displayGroupRanks?.[0];
+        const salesRank = `#${displayGroupRank?.rank} in ${displayGroupRank?.title}`;
+        const image = imagesList?.[0]?.images?.[0]?.link;
+        const listPrice = {
+          amount: attributes.list_price?.[0]?.value,
+          currency: attributes.list_price?.[0]?.currency,
+        }
+
+        const newProduct = {
+          barcode: barcode,
+          asin: asin,
+          title: title,
+          author: author,
+          publisher: publisher,
+          category: category,
+          itemType: itemType,
+          platform: platform,
+          dimensions: dimensions,
+          weight: weight,
+          salesRank: salesRank,
+          image: image,
+          listPrice: listPrice,
+        };
+
+        product = await saveProduct(newProduct);
+        scannedPrice += 0.1;
+        recommendation = Recommendation.KEEP;
+      } catch (spError: any) {
+        console.error("SP-API lookup error:", spError.message);
+        return res.status(500).json({
+          result: false,
+          error: spError.message,
+        });
       }
     }
 
-    res.status(201).json({
+    const newScan: any = {
+      user: { id: userId },
+      product: { id: product.id },
+      recommendation: recommendation,
+      scannedPrice: scannedPrice
+    }
+
+    const scan = await saveScan(newScan);
+
+    res.status(200).json({
       result: true,
-      scan: savedScan,
+      scan: {
+        ...scan,
+        product: product
+      }
     });
   } catch (error: any) {
-    console.error("Create scan error:", error);
+    console.error("Scan error:", error);
     res.status(500).json({
       result: false,
-      error: "Failed to create scan",
+      error: "Scan failed",
     });
   }
 };

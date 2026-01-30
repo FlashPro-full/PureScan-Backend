@@ -1,10 +1,12 @@
 import { Router } from 'express';
 import {
     createAmazonHandler,
-    getTotalAmazonCountHandler,
+    getIsConnectedByUserHandler,
+    getIsConnectedByAdminHandler,
     getAmazonHandler,
     updateAmazonHandler,
-    deleteAmazonHandler
+    deleteAmazonHandler,
+    getIsLimitedHandler
 } from '../controllers/amazon.controller';
 
 import { authenticate } from '../middleware/auth.middleware';
@@ -12,7 +14,9 @@ import { authenticate } from '../middleware/auth.middleware';
 const router = Router();
 
 router.post('/', authenticate, createAmazonHandler);
-router.get('/total', authenticate, getTotalAmazonCountHandler);
+router.get('/admin/connect', authenticate, getIsConnectedByAdminHandler);
+router.get('/user/connect', authenticate, getIsConnectedByUserHandler);
+router.get('/limit', authenticate, getIsLimitedHandler);
 router.get('/', authenticate, getAmazonHandler);
 router.put('/:id', authenticate, updateAmazonHandler);
 router.delete('/:id', authenticate, deleteAmazonHandler);

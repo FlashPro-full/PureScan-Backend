@@ -16,9 +16,26 @@ export const findScanListByUserId = async (userId: number) => {
 
     result = await scanRepo.find({
         where: { user: { id: userId } },
-        order: { scannedAt: 'DESC' },
+        relations: ['product'],
+        order: { createdAt: 'DESC' },
         take: 100,
     });
+
+    return result;
+}
+
+export const updateScan = async (id: number, scan: Partial<Scan>) => {
+    let result = null;
+
+    result = await scanRepo.update({ id: id }, scan);
+
+    return result;
+}
+
+export const deleteScan = async (id: number) => {
+    let result = null;
+
+    result = await scanRepo.delete({ id: id });
 
     return result;
 }

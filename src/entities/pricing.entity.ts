@@ -10,29 +10,17 @@ export class ProductPricing extends Model {
   @JoinColumn({ name: 'productId' })
   product: Product;
 
-  @Column({ type: 'varchar', nullable: true })
-  source: string;
+  @Column({ type: 'decimal', nullable: true })
+  suggestedPrice: {
+    amount: number;
+    currency: string;
+  };
 
   @Column({ type: 'decimal', nullable: true })
-  buyBoxPrice: number;
-
-  @Column({ type: 'decimal', nullable: true })
-  lowestMfPrice: number;
-
-  @Column({ type: 'decimal', nullable: true })
-  fbaFees: number;
-
-  @Column({ type: 'decimal', default: 0.15 })
-  referralFeeRate: number;
-
-  @Column({ type: 'decimal', default: 1.8 })
-  closingFee: number;
-
-  @Column({ type: 'decimal', nullable: true })
-  fulfillmentFee: number;
-
-  @Column({ type: 'decimal', nullable: true })
-  storageFee: number;
+  fees: {
+    amount: number;
+    currency: string;
+  };
 
   @Column({ type: 'timestamp' })
   effectiveDate: Date;

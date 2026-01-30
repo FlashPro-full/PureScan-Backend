@@ -1,6 +1,5 @@
 export * from './user.entity';
 export * from './scan.entity';
-export * from './inventory.entity';
 export * from './product.entity';
 export * from './pricing.entity';
 export * from './subscription.entity';

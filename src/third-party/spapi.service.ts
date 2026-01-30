@@ -25,12 +25,38 @@ interface marketplaceResponse {
   }[];
 }
 
+const getIdentifiersTypeFromBarcode = (barcode: string): string => {
+  const s = String(barcode || '').trim();
+  const normalized = s.replace(/[- ]/g, '');
+  const digitsOnly = s.replace(/\D/g, '');
+  const len = digitsOnly.length;
+  if (/^\d{9}[\dXx]$/.test(normalized)) return 'ISBN';
+  if (len === 13) {
+    const prefix = digitsOnly.slice(0, 3);
+    if (prefix === '978' || prefix === '979') return 'ISBN';
+    return 'EAN';
+  }
+  if (len === 12) return 'UPC';
+  if (len === 8) return 'EAN';
+  if (len >= 13) return 'EAN';
+  if (len >= 8 && len <= 14) return 'GTIN';
+  return 'UPC';
+}
+
+
 export class SPApiService {
   private client: AxiosInstance;
   private accessToken: string | null = null;
   private tokenExpiry: Date | null = null;
+  private clientId: string;
+  private clientSecret: string;
+  private refreshToken: string;
 
-  constructor() {
+  constructor(clientId: string, clientSecret: string, refreshToken: string) {
+    this.clientId = clientId;
+    this.clientSecret = clientSecret;
+    this.refreshToken = refreshToken;
+
     this.client = axios.create({
       baseURL: 'https://sellingpartnerapi-na.amazon.com',
       timeout: 30000,
@@ -52,9 +78,9 @@ export class SPApiService {
 
   private async refreshAccessToken(): Promise<void> {
     try {
-      const clientId = process.env.SP_API_CLIENT_ID;
-      const clientSecret = process.env.SP_API_CLIENT_SECRET;
-      const refreshToken = process.env.SP_API_REFRESH_TOKEN;
+      const clientId = this.clientId;
+      const clientSecret = this.clientSecret;
+      const refreshToken = this.refreshToken;
 
       if (!clientId || !clientSecret || !refreshToken) {
         throw new Error('SP-API credentials not configured');
@@ -86,13 +112,13 @@ export class SPApiService {
     }
   }
 
-  async getMarketplaceParticipations(): Promise<marketplaceResponse> {
+  async getMarketplaceParticipations(): Promise<any[]> {
     try {
-      const res = await this.client.get('sellers/v1/marketplaceParticipations');
-      if (res?.data && res.data?.payload && Array.isArray(res.data.payload) && res.data.payload.length > 0) {
+      const res = await this.client.get<marketplaceResponse>('sellers/v1/marketplaceParticipations');
+      if (res?.data?.payload && Array.isArray(res.data.payload) && res.data.payload.length > 0) {
         return res.data.payload;
       }
-      return { payload: [] };
+      return [];
     } catch (error: any) {
       console.error('Failed to get market place ID:', error.message);
       throw new Error('Failed to get market place ID');
@@ -101,12 +127,13 @@ export class SPApiService {
 
   async lookupProduct(barcode: string, marketplaceId: string = 'ATVPDKIKX0DER'): Promise<any> {
     try {
+      const identifiersType = getIdentifiersTypeFromBarcode(barcode);
       const response = await this.client.get('/catalog/2022-04-01/items', {
         params: {
           marketplaceIds: marketplaceId,
           identifiers: barcode,
-          identifiersType: 'UPC',
-          includedData: 'attributes,dimensions,identifiers,images,productTypes,salesRanks',
+          identifiersType: identifiersType.toUpperCase(),
+          includedData: 'attributes,productTypes,images,salesRanks',
         },
       });
 
@@ -119,23 +146,24 @@ export class SPApiService {
     }
   }
 
-  async getPricing(asin: string, marketplaceId: string = 'ATVPDKIKX0DER'): Promise<any> {
+  async getCompetitivePricing(asin: string, marketplaceId: string = 'ATVPDKIKX0DER'): Promise<any> {
     try {
-      const response = await this.client.get('/products/pricing/v0/price', {
+      const response = await this.client.get('/products/pricing/v0/competitivePrice', {
         params: {
           MarketplaceId: marketplaceId,
-          Asins: [asin],
-          ItemType: 'Asin',
-        },
+          Asins: asin,
+          ItemType: 'Asin'
+        }
       });
 
       return response.data;
     } catch (error: any) {
-      console.error('Failed to get pricing:', error.message);
-      return null;
+      if (error.response?.status === 404) {
+        return null;
+      }
+      throw error;
     }
   }
-}
 
-export const spApiService = new SPApiService();
+}
 

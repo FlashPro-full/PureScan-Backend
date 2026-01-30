@@ -11,7 +11,7 @@ export const findProductByCondition = async (condition: FindOptionsWhere<Product
 
     result = await productRepo.findOne({
         where: condition,
-        relations: ['pricing'],
+        relations: ['pricings'],
     });
 
     return result;

@@ -43,3 +43,14 @@ export const findTeam = async (adminId: number) => {
 
     return result;
 }
+
+export const findAdminByUserId = async (userId: number) => {
+    let result = null;
+
+    result = await teamRepo.findOne({
+        select: ['admin'],
+        where: { member: { id: userId } }
+    });
+
+    return result;
+}
