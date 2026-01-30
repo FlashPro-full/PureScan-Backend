@@ -24,29 +24,6 @@ export const getInventoryListHandler = async (
   }
 };
 
-export const updateInventoryHandler = async (
-  req: Request,
-  res: Response
-) => {
-  try {
-    const { id } = req.params;
-    const updates = req.body;
-
-    await updateScan(Number(id), updates);
-
-    res.status(200).json({
-      result: true,
-      message: "Inventory updated successfully",
-    });
-  } catch (error: any) {
-    console.error("Update inventory error:", error);
-    res.status(500).json({
-      result: false,
-      error: "Failed to update inventory",
-    });
-  }
-};
-
 export const deleteInventoryHandler = async (
   req: Request,
   res: Response
