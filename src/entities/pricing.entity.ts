@@ -10,13 +10,13 @@ export class ProductPricing extends Model {
   @JoinColumn({ name: 'productId' })
   product: Product;
 
-  @Column({ type: 'decimal', nullable: true })
+  @Column({ type: 'jsonb', nullable: true })
   suggestedPrice: {
     amount: number;
     currency: string;
   };
 
-  @Column({ type: 'decimal', nullable: true })
+  @Column({ type: 'jsonb', nullable: true })
   fees: {
     amount: number;
     currency: string;
