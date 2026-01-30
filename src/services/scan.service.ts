@@ -24,6 +24,19 @@ export const findScanListByUserId = async (userId: number) => {
     return result;
 }
 
+export const findScanListGroupByProductId = async (userId: number) => {
+    let result = null;
+
+    result = await scanRepo
+        .createQueryBuilder('scan')
+        .innerJoinAndSelect('scan.product', 'product')
+        .where('scan.userId = :userId', { userId })
+        .groupBy('product.id')
+        .getMany();
+
+    return result;
+}
+
 export const updateScan = async (id: number, scan: Partial<Scan>) => {
     let result = null;
 
