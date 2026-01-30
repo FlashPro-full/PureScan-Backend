@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { deleteScan, findScanListByUserId, updateScan } from "../services/scan.service";
+import { deleteScan, findScanListGroupByProductId } from "../services/scan.service";
 import { AuthRequest } from "../middleware/auth.middleware";
 
 export const getInventoryListHandler = async (
@@ -9,7 +9,7 @@ export const getInventoryListHandler = async (
   try {
     const userId = Number(req.user!.id);
 
-    const items = await findScanListByUserId(userId);
+    const items = await findScanListGroupByProductId(userId);
 
     res.status(200).json({
       result: true,

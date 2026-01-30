@@ -25,24 +25,20 @@ export const findScanListByUserId = async (userId: number) => {
 }
 
 export const findScanListGroupByProductId = async (userId: number) => {
-    let result = null;
+    const scans = await scanRepo.find({
+        where: { user: { id: userId } },
+        relations: ['product'],
+        order: { createdAt: 'DESC' },
+    });
 
-    result = await scanRepo
-        .createQueryBuilder('scan')
-        .innerJoinAndSelect('scan.product', 'product')
-        .where('scan.userId = :userId', { userId })
-        .groupBy('product.id')
-        .getMany();
+    const byProductId = new Map<number, Scan>();
+    for (const scan of scans) {
+        if (scan.product?.id != null && !byProductId.has(scan.product.id)) {
+            byProductId.set(scan.product.id, scan);
+        }
+    }
 
-    return result;
-}
-
-export const updateScan = async (id: number, scan: Partial<Scan>) => {
-    let result = null;
-
-    result = await scanRepo.update({ id: id }, scan);
-
-    return result;
+    return Array.from(byProductId.values());
 }
 
 export const deleteScan = async (id: number) => {
