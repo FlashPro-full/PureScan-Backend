@@ -3,11 +3,10 @@ import {
   getInventoryListHandler,
   deleteInventoryHandler,
 } from "../controllers/inventory.controller";
-import { authenticate } from "../middleware/auth.middleware";
 
 const router = express.Router();
 
-router.get("/", authenticate, getInventoryListHandler);
-router.delete("/:id", authenticate, deleteInventoryHandler);
+router.get("/", getInventoryListHandler);
+router.delete("/:id", deleteInventoryHandler);
 
 export default router;

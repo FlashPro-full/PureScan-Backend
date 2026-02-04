@@ -7,7 +7,7 @@ import { authenticate } from "../middleware/auth.middleware";
 
 const router = express.Router();
 
-router.get("/subscription", authenticate, getSubscription);
-router.get("/export", authenticate, exportData);
+router.get("/subscription", getSubscription);
+router.get("/export", exportData);
 
 export default router;

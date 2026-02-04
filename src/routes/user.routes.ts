@@ -7,14 +7,14 @@ import {
   acknowledgeTrial,
 } from "../controllers/user.controller";
 
-import { authenticate, requireAdmin } from "../middleware/auth.middleware";
+import { requireAdmin } from "../middleware/auth.middleware";
 
 const router = express.Router();
 
-router.get("/team", authenticate, requireAdmin, getTeam);
-router.get("/preferences", authenticate, getPreferences);
-router.put("/preferences", authenticate, updatePreferences);
-router.get("/trial-status", authenticate, getTrialStatus);
-router.post('/acknowledge-trial', authenticate, acknowledgeTrial)
+router.get("/team", requireAdmin, getTeam);
+router.get("/preferences", getPreferences);
+router.put("/preferences", updatePreferences);
+router.get("/trial-status", getTrialStatus);
+router.post('/acknowledge-trial', acknowledgeTrial)
 
 export default router;

@@ -4,8 +4,8 @@ import { authenticate } from '../middleware/auth.middleware';
 
 const router = express.Router();
 
-router.post('/', authenticate, createScan);
-router.get('/', authenticate, getScanList);
+router.post('/', createScan);
+router.get('/', getScanList);
 
 export default router;
 

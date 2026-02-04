@@ -9,16 +9,14 @@ import {
     getIsLimitedHandler
 } from '../controllers/amazon.controller';
 
-import { authenticate } from '../middleware/auth.middleware';
-
 const router = Router();
 
-router.post('/', authenticate, createAmazonHandler);
-router.get('/admin/connect', authenticate, getIsConnectedByAdminHandler);
-router.get('/user/connect', authenticate, getIsConnectedByUserHandler);
-router.get('/limit', authenticate, getIsLimitedHandler);
-router.get('/', authenticate, getAmazonHandler);
-router.put('/:id', authenticate, updateAmazonHandler);
-router.delete('/:id', authenticate, deleteAmazonHandler);
+router.post('/', createAmazonHandler);
+router.get('/admin/connect', getIsConnectedByAdminHandler);
+router.get('/user/connect', getIsConnectedByUserHandler);
+router.get('/limit', getIsLimitedHandler);
+router.get('/', getAmazonHandler);
+router.put('/:id', updateAmazonHandler);
+router.delete('/:id', deleteAmazonHandler);
 
 export default router;

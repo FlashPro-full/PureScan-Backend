@@ -136,7 +136,7 @@ export class SPApiService {
           includedData: 'attributes,productTypes,images,salesRanks',
         },
       });
-
+      console.log(response.data);
       return response.data;
     } catch (error: any) {
       if (error.response?.status === 404) {
@@ -157,6 +157,32 @@ export class SPApiService {
       });
 
       return response.data;
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  async estimateFees(barcode: string, asin: string, price: number, fee: number, marketplaceId: string = 'ATVPDKIKX0DER'): Promise<any> {
+    try {
+      const response = await this.client.post(`/products/fees/v0/items/${asin}/feesEstimate`, {
+        "FeesEstimateRequest": {
+          "MarketplaceId": marketplaceId,
+          "IsAmazonFulfilled": true,
+          "PriceToEstimateFees": {
+            "ListingPrice": { "CurrencyCode": "USD", "Amount": price },
+            "Shipping": { "CurrencyCode": "USD", "Amount": fee },
+            "Points": {
+              "PointsNumber": 0,
+              "PointsMonetaryValue": { "CurrencyCode": "USD", "Amount": 0 }
+            }
+          },
+          "Identifier": barcode,
+          "OptionalFulfillmentProgram": "FBA_CORE"
+        }
+      })
     } catch (error: any) {
       if (error.response?.status === 404) {
         return null;
