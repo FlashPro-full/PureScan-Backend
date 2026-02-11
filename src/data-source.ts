@@ -5,13 +5,10 @@ dotenv.config();
 import { DataSource } from "typeorm";
 import { User } from "./entities/user.entity";
 import { Scan } from "./entities/scan.entity";
-import { Product } from "./entities/product.entity";
-import { ProductPricing } from "./entities/pricing.entity";
 import { Subscription } from "./entities/subscription.entity";
-import { TriggerGroup } from "./entities/group.entity";
-import { TriggerRule } from "./entities/rule.entity";
-import { Team } from "./entities/team.entity";
-import { Amazon } from "./entities/amazon.entity";
+import { Preference } from "./entities/preference.entity";
+import { Sound } from "./entities/sound.entity";
+import { Shipment } from "./entities/shipment.entity";
 
 export const AppDataSource = new DataSource({
   type: "postgres",
@@ -21,13 +18,10 @@ export const AppDataSource = new DataSource({
   entities: [
     User,
     Scan,
-    Product,
-    ProductPricing,
     Subscription,
-    TriggerGroup,
-    TriggerRule,
-    Team,
-    Amazon,
+    Preference,
+    Sound,
+    Shipment
   ],
   migrations: ["src/migrations/**/*.ts"],
 });

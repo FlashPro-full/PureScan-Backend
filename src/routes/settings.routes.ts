@@ -1,13 +1,18 @@
 import express from "express";
 import {
-  getSubscription,
-  exportData,
+  getSubscriptionHandler,
+  exportDataHandler,
+  getPreferencesHandler,
+  updatePreferencesHandler,
+  updateSubscriptionHandler,
 } from "../controllers/settings.controller";
-import { authenticate } from "../middleware/auth.middleware";
 
 const router = express.Router();
 
-router.get("/subscription", getSubscription);
-router.get("/export", exportData);
+router.get("/subscription", getSubscriptionHandler);
+router.put("/subscription", updateSubscriptionHandler);
+router.get("/export", exportDataHandler);
+router.get("/preferences", getPreferencesHandler);
+router.put("/preferences", updatePreferencesHandler);
 
 export default router;

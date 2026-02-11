@@ -1,13 +1,24 @@
-import { Request, Response } from "express";
+import { Response } from "express";
 import { AuthRequest } from "../middleware/auth.middleware";
-import { saveScan, findScanListByUserId } from "../services/scan.service";
-import { SPApiService } from "../third-party/spapi.service";
-import { findAdminByUserId } from "../services/user.service";
-import { findAmazonByUserId } from "../services/amazon.service";
-import { findProductByCondition, saveProduct } from "../services/product.service";
-import { Recommendation } from "../entities/scan.entity";
+import { saveScan, findScanListByUserId, deleteScanById } from "../services/scan.service";
+import { spApiService } from "../third-party/spapi.service";
+import { calculateEScore, selectTargetPrice, determineRoute } from "../third-party/pallet.service";
 
-export const createScan = async (req: AuthRequest, res: Response) => {
+function formatCategory(category: string): string {
+  if (category.includes("book")) {
+    return "Book";
+  } else if (category.includes("dvd")) {
+    return "DVD";
+  } else if (category.includes("music")) {
+    return "Music";
+  } else if (category.includes("video_games")) {
+    return "Video Games";
+  }
+
+  return "Others";
+}
+
+export const createScanHandler = async (req: AuthRequest, res: Response) => {
   try {
     const userId = Number(req.user!.id);
 
@@ -20,115 +31,251 @@ export const createScan = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    let adminId = -1;
+    const spProduct = await spApiService.lookupProduct(barcode);
 
-    if (req.user?.role === 'user') {
-      const user = await findAdminByUserId(userId);
-      adminId = user?.admin?.id || -1;
-    } else {
-      adminId = userId;
-    }
-
-    const amazon = await findAmazonByUserId(adminId);
-
-    if (!amazon) {
+    if (spProduct?.numberOfResults === 0) {
       return res.status(404).json({
         result: false,
-        error: "Amazon credentials not found",
+        error: "Product not found",
       });
     }
 
-    let product = await findProductByCondition({ barcode });
-    let scannedPrice = 0.1;
-    let recommendation = Recommendation.DISCARD;
+    const item = spProduct.items[0];
+    const attributes = item.attributes || {};
+    const dimensionsList = Array.isArray(attributes.item_dimensions)
+      ? attributes.item_dimensions
+      : [];
+    const imagesList = Array.isArray(item.images) ? item.images : [];
+    const salesRanksList = Array.isArray(item.salesRanks)
+      ? item.salesRanks
+      : [];
 
-    if (!product) {
-      try {
-        const spApiService = new SPApiService(amazon.clientId, amazon.clientSecret, amazon.refreshToken);
-        const spProduct = await spApiService.lookupProduct(barcode)
+    const asin = item.asin;
+    const title = attributes.item_name?.[0]?.value;
+    const author = attributes.author?.[0]?.value;
+    const publisher = attributes.manufacturer?.[0]?.value;
+    const platform =
+      attributes.platform?.[0]?.value ||
+      attributes.computer_platform?.[0]?.value ||
+      attributes.video_game_platform?.[0]?.value ||
+      null;
+    const itemType = attributes.item_type_keyword?.[0]?.value;
+    const weight = {
+      unit: attributes.item_weight?.[0]?.unit,
+      value: attributes.item_weight?.[0]?.value,
+    };
+    const dimensions = {
+      length: dimensionsList?.[0]?.length,
+      width: dimensionsList?.[0]?.width,
+      height: dimensionsList?.[0]?.height,
+    };
+    const displayGroupRank = salesRanksList?.[0]?.displayGroupRanks?.[0];
+    const category = formatCategory(
+      displayGroupRank?.websiteDisplayGroup
+    );
+    const salesRank = displayGroupRank?.rank || 0;
+    const image = imagesList?.[0]?.images?.[0]?.link;
+    const listPrice = {
+      amount: attributes.list_price?.[0]?.value,
+      currency: attributes.list_price?.[0]?.currency,
+    };
 
-        if (spProduct?.numberOfResults === 0) {
-          return res.status(404).json({
-            result: false,
-            error: "Product not found",
-          });
-        }
+    const spOffers = await spApiService.getItemOffers(asin);
 
-        const item = spProduct.items[0];
-        const attributes = item.attributes || {};
-        const dimensionsList = Array.isArray(attributes.item_dimensions) ? attributes.item_dimensions : [];
-        const imagesList = Array.isArray(item.images) ? item.images : [];
-        const productTypesList = Array.isArray(item.productTypes) ? item.productTypes : [];
-        const salesRanksList = Array.isArray(item.salesRanks) ? item.salesRanks : [];
+    if (!asin) {
+      return res.status(404).json({
+        result: false,
+        error: "Product ASIN not found",
+      });
+    }
 
-        const asin = item.asin;
-        const title = attributes.item_name?.[0]?.value;
-        const author = attributes.author?.[0]?.value;
-        const publisher = attributes.manufacturer?.[0]?.value;
-        const category = productTypesList?.[0]?.productType;
-        const platform = attributes.platform?.[0]?.value || attributes.computer_platform?.[0]?.value || attributes.video_game_platform?.[0]?.value || null;
-        const itemType = attributes.item_type_keyword?.[0]?.value;
-        const weight = {
-          unit: attributes.item_weight?.[0]?.unit,
-          value: attributes.item_weight?.[0]?.value,
-        }
-        const dimensions = {
-          length: dimensionsList?.[0].length,
-          width: dimensionsList?.[0].width,
-          height: dimensionsList?.[0].height,
-        };
-        const displayGroupRank = salesRanksList?.[0]?.displayGroupRanks?.[0];
-        const salesRank = `#${displayGroupRank?.rank} in ${displayGroupRank?.title}`;
-        const image = imagesList?.[0]?.images?.[0]?.link;
-        const listPrice = {
-          amount: attributes.list_price?.[0]?.value,
-          currency: attributes.list_price?.[0]?.currency,
-        }
+    const summary = spOffers?.payload?.Summary;
+    const lowestPricesList = summary?.LowestPrices || [];
+    const buyBoxPricesList = summary?.BuyBoxPrices || [];
+    const numberOfOffersList = summary?.NumberOfOffers || [];
+    const offersList = spOffers?.payload?.Offers || [];
 
-        const newProduct = {
-          barcode: barcode,
-          asin: asin,
-          title: title,
-          author: author,
-          publisher: publisher,
-          category: category,
-          itemType: itemType,
-          platform: platform,
-          dimensions: dimensions,
-          weight: weight,
-          salesRank: salesRank,
-          image: image,
-          listPrice: listPrice,
-        };
+    const buyBoxNewItem = buyBoxPricesList.find((item: any) => item?.condition.toLowerCase() === "new")
+    const buyBoxNew = buyBoxNewItem?.LandedPrice.Amount || 0;
+    const buyBoxUsedItem = buyBoxPricesList.find((item: any) => item?.condition.toLowerCase() === "used")
+    const buyBoxUsed = buyBoxUsedItem?.LandedPrice?.Amount || 0;
+    const lowestNewItem = lowestPricesList.filter((item: any) =>
+      item?.condition.toLowerCase() === "new"
+    ).sort((a: any, b: any) => a.LandedPrice.Amount - b.LandedPrice.Amount)[0];
+    const lowestNew = lowestNewItem?.LandedPrice?.Amount || 0;
+    const lowestCollectibleItem = lowestPricesList.find((item: any) =>
+      item?.condition.toLowerCase() === "collectible" &&
+      item?.fulfillmentChannel.toLowerCase() === "merchant"
+    );
+    const lowestCollectible = lowestCollectibleItem?.LandedPrice?.Amount || 0;
+    const lowestCollectibleFBAItem = lowestPricesList.find((item: any) =>
+      item?.condition === "collectible" &&
+      item?.fulfillmentChannel === "Amazon"
+    );
+    const lowestCollectibleFBA = lowestCollectibleFBAItem?.LandedPrice?.Amount || 0;
+    const mfUsedItem = numberOfOffersList.find((item: any) =>
+      item?.condition.toLowerCase() === "used" &&
+      item?.fulfillmentChannel.toLowerCase() === "merchant"
+    );
+    const mfUsed = mfUsedItem?.OfferCount || 0;
+    const mfNewItem = numberOfOffersList.find((item: any) =>
+      item?.condition.toLowerCase() === "new" &&
+      item?.fulfillmentChannel.toLowerCase() === "merchant"
+    );
+    const mfNew = mfNewItem?.OfferCount || 0;
+    const collectibleItem = numberOfOffersList.find((item: any) =>
+      item?.condition.toLowerCase() === "collectible" &&
+      item?.fulfillmentChannel.toLowerCase() === "merchant"
+    );
+    const collectible = collectibleItem?.OfferCount || 0;
+    const fbaUsedItem = numberOfOffersList.find((item: any) =>
+      item?.condition.toLowerCase() === "used" &&
+      item?.fulfillmentChannel.toLowerCase() === "amazon"
+    );
+    const fbaUsed = fbaUsedItem?.OfferCount || 0;
+    const fbaNewItem = numberOfOffersList.find((item: any) =>
+      item?.condition.toLowerCase() === "new" &&
+      item?.fulfillmentChannel.toLowerCase() === "amazon"
+    );
+    const fbaNew = fbaNewItem?.OfferCount || 0;
+    const count = {
+      mfUsed: mfUsed + fbaUsed + collectible,
+      mfNew: mfNew,
+      fbaUsed: fbaUsed,
+      fbaNew: fbaNew,
+    };
 
-        product = await saveProduct(newProduct);
-        scannedPrice += 0.1;
-        recommendation = Recommendation.KEEP;
-      } catch (spError: any) {
-        console.error("SP-API lookup error:", spError.message);
-        return res.status(500).json({
-          result: false,
-          error: spError.message,
+    const fbaOffersList = offersList.filter(
+      (item: any) => item?.IsFulfilledByAmazon
+    );
+    const pricesList = offersList.map(
+      (item: any) =>
+        Math.round(
+          (Number(item?.Shipping?.Amount) +
+            Number(item?.ListingPrice?.Amount)) *
+          100
+        ) / 100
+    );
+    const fbaPricesList = fbaOffersList.map(
+      (item: any) =>
+        Math.round(
+          (Number(item?.Shipping?.Amount) +
+            Number(item?.ListingPrice?.Amount)) *
+          100
+        ) / 100
+    );
+
+    console.log(fbaPricesList);
+    console.log(pricesList);
+
+    const tempList: any[] = [];
+    pricesList.forEach((price: number) => {
+      const index = tempList.findIndex((item: any) => item.price === price);
+      if (index > -1) {
+        tempList[index].count++;
+      } else {
+        tempList.push({
+          count: 1,
+          price: price,
         });
       }
-    }
-
-    const newScan: any = {
-      user: { id: userId },
-      product: { id: product.id },
-      recommendation: Recommendation.KEEP,
-      scannedPrice: scannedPrice
-    }
-
-    const scan = await saveScan(newScan);
-
-    res.status(200).json({
-      result: true,
-      scan: {
-        ...scan,
-        product: product
-      }
     });
+
+    const initialPrice = pricesList[pricesList.length - 1] || 0;
+    let fbaTargetPrice = selectTargetPrice(category, salesRank, initialPrice, buyBoxNew, lowestNew);
+    let mfTargetPrice = 0;
+    let sbybTargetPrice = 0;
+
+    if (tempList.length >= 2 && tempList[1].count > tempList[0].count) {
+      mfTargetPrice = tempList[1].price;
+    } else if (tempList.length >= 1) {
+      mfTargetPrice = tempList[0].price;
+    }
+
+    let fbaProfit = 0, mfProfit = 0, sbybProfit = 0;
+    const mfShippingCost = 3.89;
+    const eScore = calculateEScore(category, salesRank);
+
+    const { fba: fbaFeeRes, mf: mfFeeRes } = await spApiService.getMyFeesEstimates(
+      asin,
+      barcode,
+      fbaTargetPrice,
+      mfTargetPrice,
+      mfShippingCost
+    );
+
+    const fbaTotalFees = fbaFeeRes?.FeesEstimate?.TotalFeesEstimate?.Amount || 0;
+    fbaProfit = Math.round((fbaTargetPrice - fbaTotalFees) * 100) / 100;
+    const mfTotalFees = mfFeeRes?.FeesEstimate?.TotalFeesEstimate?.Amount || 0;
+    mfProfit = Math.round((mfTargetPrice - mfTotalFees - mfShippingCost) * 100) / 100;
+
+    const { fbaAccept, mfAccept } = determineRoute(category, salesRank, eScore, fbaProfit, mfProfit);
+
+    const scanResult = {
+      product: {
+        asin,
+        title,
+        author,
+        publisher,
+        platform,
+        itemType,
+        category,
+        weight,
+        dimensions,
+        image,
+        listPrice
+      },
+      pricing: {
+        salesRank,
+        eScore,
+        buyBox: { new: buyBoxNew, used: buyBoxUsed },
+        lowestNew: lowestNew,
+        lowestCollectible: lowestCollectible,
+        lowestCollectibleFBA: lowestCollectibleFBA,
+      },
+      offers: {
+        count,
+        used: pricesList,
+        fbaUsed: fbaPricesList
+      },
+      fba: {
+        targetPrice: fbaTargetPrice,
+        profit: fbaProfit,
+        accept: fbaAccept
+      },
+      mf: {
+        targetPrice: mfTargetPrice,
+        profit: mfProfit,
+        accept: mfAccept
+      },
+      sbyb: {
+        targetPrice: sbybTargetPrice,
+        profit: sbybProfit,
+        accept: false
+      },
+    };
+
+    await saveScan({
+      user: { id: userId },
+      asin: asin,
+      title: title,
+      image: image,
+      category: category,
+      author: author,
+      publisher: publisher,
+      platform: platform,
+      itemType: itemType,
+      weight: weight,
+      dimensions: dimensions,
+      listPrice: listPrice,
+      route: fbaAccept ? "AMAZON - FBA" : mfAccept ? "AMAZON - MF" : "WHOLESALE - SBYB",
+      profit: fbaAccept ? fbaProfit : mfAccept ? mfProfit : 0,
+    } as Partial<any>);
+    return res.status(200).json({
+      result: true,
+      scanResult,
+    });
+
   } catch (error: any) {
     console.error("Scan error:", error);
     res.status(500).json({
@@ -138,7 +285,7 @@ export const createScan = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const getScanList = async (req: AuthRequest, res: Response) => {
+export const getScanListHandler = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
 
@@ -157,108 +304,19 @@ export const getScanList = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const getExternalScan = async (req: AuthRequest, res: Response) => {
-  const userId = Number(req.user!.id);
-
-  const { barcode } = req.body;
-
-  if (!barcode) {
-    return res.status(400).json({
-      result: false,
-      error: "Barcode is required",
+export const deleteScanHandler = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    await deleteScanById(Number(id));
+    res.status(200).json({
+      result: true,
+      message: "Scan deleted successfully",
     });
-  }
-
-  let adminId = -1;
-
-  if (req.user?.role === 'user') {
-    const user = await findAdminByUserId(userId);
-    adminId = user?.admin?.id || -1;
-  } else {
-    adminId = userId;
-  }
-
-  const amazon = await findAmazonByUserId(adminId);
-
-  if (!amazon) {
-    return res.status(404).json({
+  } catch (error: any) {
+    console.error("Delete scan error:", error);
+    res.status(500).json({
       result: false,
-      error: "Amazon credentials not found",
+      error: "Failed to delete scan"
     });
-  }
-
-  let product = await findProductByCondition({ barcode });
-  let scannedPrice = 0.1;
-  let recommendation = Recommendation.DISCARD;
-
-  if (!product) {
-    try {
-      const spApiService = new SPApiService(amazon.clientId, amazon.clientSecret, amazon.refreshToken);
-      const spProduct = await spApiService.lookupProduct(barcode)
-
-      if (spProduct?.numberOfResults === 0) {
-        return res.status(404).json({
-          result: false,
-          error: "Product not found",
-        });
-      }
-
-      const item = spProduct.items[0];
-      const attributes = item.attributes || {};
-      const dimensionsList = Array.isArray(attributes.item_dimensions) ? attributes.item_dimensions : [];
-      const imagesList = Array.isArray(item.images) ? item.images : [];
-      const productTypesList = Array.isArray(item.productTypes) ? item.productTypes : [];
-      const salesRanksList = Array.isArray(item.salesRanks) ? item.salesRanks : [];
-
-      const asin = item.asin;
-      const title = attributes.item_name?.[0]?.value;
-      const author = attributes.author?.[0]?.value;
-      const publisher = attributes.manufacturer?.[0]?.value;
-      const category = productTypesList?.[0]?.productType;
-      const platform = attributes.platform?.[0]?.value || attributes.computer_platform?.[0]?.value || attributes.video_game_platform?.[0]?.value || null;
-      const itemType = attributes.item_type_keyword?.[0]?.value;
-      const weight = {
-        unit: attributes.item_weight?.[0]?.unit,
-        value: attributes.item_weight?.[0]?.value,
-      }
-      const dimensions = {
-        length: dimensionsList?.[0].length,
-        width: dimensionsList?.[0].width,
-        height: dimensionsList?.[0].height,
-      };
-      const displayGroupRank = salesRanksList?.[0]?.displayGroupRanks?.[0];
-      const salesRank = `#${displayGroupRank?.rank} in ${displayGroupRank?.title}`;
-      const image = imagesList?.[0]?.images?.[0]?.link;
-      const listPrice = {
-        amount: attributes.list_price?.[0]?.value,
-        currency: attributes.list_price?.[0]?.currency,
-      }
-
-      const newProduct = {
-        barcode: barcode,
-        asin: asin,
-        title: title,
-        author: author,
-        publisher: publisher,
-        category: category,
-        itemType: itemType,
-        platform: platform,
-        dimensions: dimensions,
-        weight: weight,
-        salesRank: salesRank,
-        image: image,
-        listPrice: listPrice,
-      };
-
-      product = await saveProduct(newProduct);
-      scannedPrice += 0.1;
-      recommendation = Recommendation.KEEP;
-    } catch (spError: any) {
-      console.error("SP-API lookup error:", spError.message);
-      return res.status(500).json({
-        result: false,
-        error: spError.message,
-      });
-    }
   }
 }

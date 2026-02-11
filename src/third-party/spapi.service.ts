@@ -1,4 +1,7 @@
 import axios, { AxiosInstance } from 'axios';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 interface LWATokenResponse {
   access_token: string;
@@ -44,6 +47,9 @@ const getIdentifiersTypeFromBarcode = (barcode: string): string => {
 }
 
 
+export const getIdTypeFromBarcode = (barcode: string): string =>
+  getIdentifiersTypeFromBarcode(barcode).toUpperCase();
+
 export class SPApiService {
   private client: AxiosInstance;
   private accessToken: string | null = null;
@@ -52,10 +58,10 @@ export class SPApiService {
   private clientSecret: string;
   private refreshToken: string;
 
-  constructor(clientId: string, clientSecret: string, refreshToken: string) {
-    this.clientId = clientId;
-    this.clientSecret = clientSecret;
-    this.refreshToken = refreshToken;
+  constructor() {
+    this.clientId = process.env.SP_API_CLIENT_ID || "";
+    this.clientSecret = process.env.SP_API_CLIENT_SECRET || "";
+    this.refreshToken = process.env.SP_API_REFRESH_TOKEN || "";
 
     this.client = axios.create({
       baseURL: 'https://sellingpartnerapi-na.amazon.com',
@@ -136,7 +142,6 @@ export class SPApiService {
           includedData: 'attributes,productTypes,images,salesRanks',
         },
       });
-      console.log(response.data);
       return response.data;
     } catch (error: any) {
       if (error.response?.status === 404) {
@@ -165,31 +170,130 @@ export class SPApiService {
     }
   }
 
-  async estimateFees(barcode: string, asin: string, price: number, fee: number, marketplaceId: string = 'ATVPDKIKX0DER'): Promise<any> {
+  async getItemOffers(
+    asin: string,
+    itemCondition: "Used" | "New" | "Collectible" | "Refurbished" | "Club" = "Used",
+    marketplaceId: string = 'ATVPDKIKX0DER'
+  ): Promise<any> {
+    try {
+      const response = await this.client.get(`/products/pricing/v0/items/${asin}/offers`, {
+        params: {
+          MarketplaceId: marketplaceId,
+          ItemCondition: itemCondition
+        },
+      });
+      return response.data;
+    } catch (error: any) {
+      if (error.response?.status === 404) return null;
+      throw error;
+    }
+  }
+
+  async estimateFbaFees(
+    asin: string,
+    barcode: string,
+    price: number,
+    marketplaceId: string = 'ATVPDKIKX0DER'
+  ): Promise<any> {
     try {
       const response = await this.client.post(`/products/fees/v0/items/${asin}/feesEstimate`, {
-        "FeesEstimateRequest": {
-          "MarketplaceId": marketplaceId,
-          "IsAmazonFulfilled": true,
-          "PriceToEstimateFees": {
-            "ListingPrice": { "CurrencyCode": "USD", "Amount": price },
-            "Shipping": { "CurrencyCode": "USD", "Amount": fee },
-            "Points": {
-              "PointsNumber": 0,
-              "PointsMonetaryValue": { "CurrencyCode": "USD", "Amount": 0 }
-            }
+        FeesEstimateRequest: {
+          MarketplaceId: marketplaceId,
+          IsAmazonFulfilled: true,
+          PriceToEstimateFees: {
+            ListingPrice: { CurrencyCode: 'USD', Amount: price },
+            Shipping: { CurrencyCode: 'USD', Amount: 0 },
+            Points: { PointsNumber: 0, PointsMonetaryValue: { CurrencyCode: 'USD', Amount: 0 } },
           },
-          "Identifier": barcode,
-          "OptionalFulfillmentProgram": "FBA_CORE"
-        }
-      })
+          Identifier: barcode,
+          OptionalFulfillmentProgram: 'FBA_CORE',
+        },
+      });
+      return response.data;
     } catch (error: any) {
-      if (error.response?.status === 404) {
-        return null;
-      }
+      if (error.response?.status === 404) return null;
+      throw error;
+    }
+  }
+
+  async estimateMfFees(
+    asin: string,
+    barcode: string,
+    price: number,
+    shipping: number,
+    marketplaceId: string = 'ATVPDKIKX0DER'
+  ): Promise<any> {
+    try {
+      const response = await this.client.post(`/products/fees/v0/items/${asin}/feesEstimate`, {
+        FeesEstimateRequest: {
+          MarketplaceId: marketplaceId,
+          IsAmazonFulfilled: false,
+          PriceToEstimateFees: {
+            ListingPrice: { CurrencyCode: 'USD', Amount: price },
+            Shipping: { CurrencyCode: 'USD', Amount: shipping },
+            Points: { PointsNumber: 0, PointsMonetaryValue: { CurrencyCode: 'USD', Amount: 0 } },
+          },
+          Identifier: barcode,
+        },
+      });
+      return response.data;
+    } catch (error: any) {
+      if (error.response?.status === 404) return null;
+      throw error;
+    }
+  }
+
+  async getMyFeesEstimates(
+    asin: string,
+    barcode: string,
+    fbaPrice: number,
+    mfPrice: number,
+    mfShipping: number,
+    marketplaceId: string = 'ATVPDKIKX0DER'
+  ): Promise<{ fba: any; mf: any }> {
+    try {
+      const body = [
+        {
+          FeesEstimateRequest: {
+            MarketplaceId: marketplaceId,
+            IsAmazonFulfilled: true,
+            PriceToEstimateFees: {
+              ListingPrice: { CurrencyCode: 'USD', Amount: fbaPrice },
+              Shipping: { CurrencyCode: 'USD', Amount: 0 },
+              Points: { PointsNumber: 0, PointsMonetaryValue: { CurrencyCode: 'USD', Amount: 0 } },
+            },
+            Identifier: `${barcode}-fba`,
+            OptionalFulfillmentProgram: 'FBA_CORE',
+          },
+          IdType: 'ASIN',
+          IdValue: asin,
+        },
+        {
+          FeesEstimateRequest: {
+            MarketplaceId: marketplaceId,
+            IsAmazonFulfilled: false,
+            PriceToEstimateFees: {
+              ListingPrice: { CurrencyCode: 'USD', Amount: mfPrice },
+              Shipping: { CurrencyCode: 'USD', Amount: mfShipping },
+              Points: { PointsNumber: 0, PointsMonetaryValue: { CurrencyCode: 'USD', Amount: 0 } },
+            },
+            Identifier: `${barcode}-mf`,
+          },
+          IdType: 'ASIN',
+          IdValue: asin,
+        },
+      ];
+      const response = await this.client.post('/products/fees/v0/feesEstimate', body);
+      const results = response.data;
+      return {
+        fba: results[0],
+        mf: results[1],
+      };
+    } catch (error: any) {
       throw error;
     }
   }
 
 }
 
+export const spApiService = new SPApiService();

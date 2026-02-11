@@ -1,14 +1,7 @@
-import { Entity, Column, CreateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { User } from './user.entity';
-import { Product } from './product.entity';
 
 import Model from './model.entity';
-
-export enum Recommendation {
-  KEEP = 'keep',
-  DISCARD = 'discard',
-  WARN = 'warn'
-}
 
 @Entity('scans')
 export class Scan extends Model {
@@ -17,15 +10,54 @@ export class Scan extends Model {
   @JoinColumn({ name: 'userId' })
   user: User;
 
-  @ManyToOne(() => Product, (product) => product.scans)
-  @JoinColumn({ name: 'productId' })
-  product: Product;
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  asin: string;
 
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  title: string;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  image: string;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  category: string;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  author: string;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  publisher: string;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  platform: string;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  itemType: string;
+
+  @Column({ type: 'jsonb', nullable: true })
+  weight: {
+    unit: string;
+    value: number;
+  };
+
+  @Column({ type: 'jsonb', nullable: true })
+  dimensions: {
+    length: number;
+    width: number;
+    height: number;
+  };
+
+  @Column({ type: 'jsonb', nullable: true })
+  listPrice: {
+    amount: number;
+    currency: string;
+  };
+
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  route: string;
+  
   @Column({ type: 'decimal', nullable: true })
-  scannedPrice: number;
-
-  @Column({ type: 'enum', enum: Recommendation, default: Recommendation.DISCARD })
-  recommendation: Recommendation;
+  profit: number;
 
 }
 

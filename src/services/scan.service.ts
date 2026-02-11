@@ -1,3 +1,4 @@
+import { Between } from 'typeorm';
 import { AppDataSource } from '../data-source';
 import { Scan } from '../entities/scan.entity';
 
@@ -16,7 +17,6 @@ export const findScanListByUserId = async (userId: number) => {
 
     result = await scanRepo.find({
         where: { user: { id: userId } },
-        relations: ['product'],
         order: { createdAt: 'DESC' },
         take: 100,
     });
@@ -24,24 +24,20 @@ export const findScanListByUserId = async (userId: number) => {
     return result;
 }
 
-export const findScanListGroupByProductId = async (userId: number) => {
-    const scans = await scanRepo.find({
-        where: { user: { id: userId } },
-        relations: ['product'],
-        order: { createdAt: 'DESC' },
+export const selectScanListByFromTo = async (userId: number, from: Date, to: Date) => {
+    let result = null;
+
+    result = await scanRepo.find({
+        where: { 
+            user: { id: userId },
+            createdAt: Between(from, to)
+        },
     });
 
-    const byProductId = new Map<number, Scan>();
-    for (const scan of scans) {
-        if (scan.product?.id != null && !byProductId.has(scan.product.id)) {
-            byProductId.set(scan.product.id, scan);
-        }
-    }
-
-    return Array.from(byProductId.values());
+    return result;
 }
 
-export const deleteScan = async (id: number) => {
+export const deleteScanById = async (id: number) => {
     let result = null;
 
     result = await scanRepo.delete({ id: id });

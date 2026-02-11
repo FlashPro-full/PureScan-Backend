@@ -1,11 +1,11 @@
 import express from 'express';
-import { createScan, getScanList } from '../controllers/scan.controller';
-import { authenticate } from '../middleware/auth.middleware';
+import { createScanHandler, getScanListHandler, deleteScanHandler } from '../controllers/scan.controller';
 
 const router = express.Router();
 
-router.post('/', createScan);
-router.get('/', getScanList);
+router.post('/', createScanHandler);
+router.get('/', getScanListHandler);
+router.delete('/:id', deleteScanHandler);
 
 export default router;
 

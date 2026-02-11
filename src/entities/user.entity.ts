@@ -1,10 +1,10 @@
 import { Entity, Column, OneToMany, OneToOne } from 'typeorm';
 import { Scan } from './scan.entity';
 import { Subscription } from './subscription.entity';
-import { Team } from './team.entity';
-import { Amazon } from './amazon.entity';
 
 import Model from './model.entity';
+import { Preference } from './preference.entity';
+import { Shipment } from './shipment.entity';
 
 export enum UserRole {
   ADMIN = 'admin',
@@ -23,48 +23,17 @@ export class User extends Model {
   @Column({ type: 'varchar', nullable: true })
   name: string;
 
-  @Column({ type: 'varchar', nullable: true })
-  defaultScreen: string;
-
-  @Column({ type: 'jsonb', nullable: true })
-  dashboardLayout: any;
-
-  @Column({ type: 'boolean', default: true })
-  emailNotifications: boolean;
-
-  @Column({ type: 'boolean', default: true })
-  soundEnabled: boolean;
-
-  @Column({ type: 'boolean', default: true })
-  autoSound: boolean;
-
-  @Column({ type: 'varchar', nullable: true })
-  defaultScanMode: string;
-
-  @Column({ type: 'varchar', default: 'en' })
-  language: string;
-
-  @Column({
-    type: 'enum',
-    enum: UserRole,
-    default: UserRole.USER,
-  })
-  role: UserRole;
-
   @OneToMany(() => Scan, (scan) => scan.user)
   scans: Scan[];
 
   @OneToMany(() => Subscription, (subscription) => subscription.user)
   subscriptions: Subscription[];
 
-  @OneToMany(() => Team, (team) => team.admin)
-  admins: Team[];
+  @OneToOne(() => Preference, (preference) => preference.user)
+  preference: Preference;
 
-  @OneToMany(() => Team, (team) => team.member)
-  members: Team[];
-
-  @OneToOne(() => Amazon, (amazon) => amazon.user)
-  amazon: Amazon
+  @OneToMany(() => Shipment, (shipment) => shipment.user)
+  shipments: Shipment[];
 
 }
 

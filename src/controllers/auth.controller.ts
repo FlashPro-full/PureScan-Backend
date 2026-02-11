@@ -200,9 +200,10 @@ export const login = async (req: Request, res: Response) => {
     const { email, password, rememberMe } = req.body;
 
     if (!email || !password) {
-      return res
-        .status(400)
-        .json({ result: false, error: "Email and password are required" });
+      return res.status(400).json({
+        result: false,
+        error: "Email and password are required"
+      });
     }
 
     const user = await findUserByCondition({ email });
@@ -226,8 +227,7 @@ export const login = async (req: Request, res: Response) => {
     const token = jwt.sign(
       {
         id: user.id,
-        email: user.email,
-        role: user.role,
+        email: user.email
       },
       process.env.JWT_SECRET || "your-secret-key",
       {
@@ -240,8 +240,7 @@ export const login = async (req: Request, res: Response) => {
       user: {
         id: user.id,
         email: user.email,
-        name: user.name,
-        role: user.role,
+        name: user.name
       },
       token,
     });
@@ -272,8 +271,7 @@ export const getMe = async (req: Request, res: Response) => {
       user: {
         id: user.id,
         email: user.email,
-        name: user.name,
-        role: user.role,
+        name: user.name
       },
     });
   } catch (error: any) {

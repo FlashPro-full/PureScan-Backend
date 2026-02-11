@@ -7,7 +7,9 @@
     "dev": "tsx watch src/index.ts",
     "build": "npx tsc",
     "start": "node dist/index.js",
-    "typeorm": "typeorm-ts-node-commonjs"
+    "typeorm": "typeorm-ts-node-commonjs",
+    "test:scan": "npx tsx scripts/test-scan-flow.ts",
+    "test:target-mf": "npx tsx scripts/test-target-price-mf-fees.ts"
   },
   "dependencies": {
     "axios": "^1.6.2",

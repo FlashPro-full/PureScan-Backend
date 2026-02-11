@@ -28,18 +28,18 @@ export const findSubscriptionByUserId = async (userId: number) => {
   return result;
 };
 
-export const updateSubscription = async (userId: number, subscription: Partial<Subscription>) => {
+export const updateSubscription = async (subscription: Partial<Subscription>) => {
   let result = null;
 
-  result = await subscriptionRepo.update({ user: { id: userId } }, subscription);
+  result = await subscriptionRepo.update({ id: subscription.id }, subscription);
 
   return result;
 };
 
-export const deleteSubscription = async (userId: number) => {
+export const deleteSubscription = async (id: number) => {
   let result = null;
 
-  result = await subscriptionRepo.delete({ user: { id: userId } });
+  result = await subscriptionRepo.delete({ id: id });
 
   return result;
 };
