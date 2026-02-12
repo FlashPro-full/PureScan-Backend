@@ -3,6 +3,7 @@ import { AuthRequest } from "../middleware/auth.middleware";
 import { selectScanListByFromTo } from "../services/scan.service";
 import { findSubscriptionByUserId, updateSubscription } from "../services/subscription.service";
 import { findPreferenceByUserId, updatePreference } from "../services/preference.service";
+import { getProductCondition, toggleProductCondition } from "../config";
 
 export const getSubscriptionHandler = async (req: AuthRequest, res: Response) => {
   try {
@@ -103,6 +104,37 @@ export const updatePreferencesHandler = async (req: Request, res: Response) => {
     res.status(500).json({
       result: false,
       error: "Failed to update preferences",
+    });
+  }
+};
+
+export const getProductConditionHandler = async (req: Request, res: Response) => {
+  try {
+    res.status(200).json({
+      result: true,
+      condition: getProductCondition(),
+    });
+  } catch (error: any) {
+    console.error("Get product condition error:", error);
+    res.status(500).json({
+      result: false,
+      error: "Failed to get product condition",
+    });
+  }
+};
+
+export const setProductConditionHandler = async (req: Request, res: Response) => {
+  try {
+    toggleProductCondition();
+    res.status(200).json({
+      result: true,
+      condition: getProductCondition(),
+    });
+  } catch (error: any) {
+    console.error("Set product condition error:", error);
+    res.status(500).json({
+      result: false,
+      error: "Failed to set product condition",
     });
   }
 };

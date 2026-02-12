@@ -391,8 +391,7 @@ export function determineRoute(
   salesRank: number,
   eScore: number,
   fbaProfit: number,
-  mfProfit: number,
-  condition: 'new' | 'used' = 'used'
+  mfProfit: number
 ): any {
   const fbaTrigger = findFbaTrigger(category, salesRank, eScore);
   const mfTrigger = findMfTrigger(category, salesRank, eScore);

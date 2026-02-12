@@ -3,6 +3,7 @@ import { AuthRequest } from "../middleware/auth.middleware";
 import { saveScan, findScanListByUserId, deleteScanById } from "../services/scan.service";
 import { spApiService } from "../third-party/spapi.service";
 import { calculateEScore, selectTargetPrice, determineRoute } from "../third-party/pallet.service";
+import { getProductCondition } from "../config";
 
 function formatCategory(category: string): string {
   if (category.includes("book")) {
@@ -80,7 +81,9 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
       currency: attributes.list_price?.[0]?.currency,
     };
 
-    const spOffers = await spApiService.getItemOffers(asin);
+    const condition = getProductCondition();
+    const itemCondition = condition === "new" ? "New" : "Used";
+    const spOffers = await spApiService.getItemOffers(asin, itemCondition);
 
     if (!asin) {
       return res.status(404).json({
@@ -139,10 +142,11 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
     );
     const fbaNew = fbaNewItem?.OfferCount || 0;
     const count = {
-      mfUsed: mfUsed + fbaUsed + collectible,
-      mfNew: mfNew,
-      fbaUsed: fbaUsed,
-      fbaNew: fbaNew,
+      mfUsed,
+      mfNew,
+      fbaUsed,
+      fbaNew,
+      collectible
     };
 
     const fbaOffersList = offersList.filter(
@@ -182,7 +186,7 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
     });
 
     const initialPrice = pricesList[pricesList.length - 1] || 0;
-    let fbaTargetPrice = selectTargetPrice(category, salesRank, initialPrice, buyBoxNew, lowestNew);
+    let fbaTargetPrice = selectTargetPrice(category, salesRank, initialPrice, buyBoxNew, lowestNew, undefined, condition);
     let mfTargetPrice = 0;
     let sbybTargetPrice = 0;
 
@@ -194,7 +198,7 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
 
     let fbaProfit = 0, mfProfit = 0, sbybProfit = 0;
     const mfShippingCost = 3.89;
-    const eScore = calculateEScore(category, salesRank);
+    const eScore = calculateEScore(category, salesRank, condition);
 
     const { fba: fbaFeeRes, mf: mfFeeRes } = await spApiService.getMyFeesEstimates(
       asin,
@@ -235,8 +239,8 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
       },
       offers: {
         count,
-        used: pricesList,
-        fbaUsed: fbaPricesList
+        all: pricesList,
+        fba: fbaPricesList
       },
       fba: {
         targetPrice: fbaTargetPrice,
