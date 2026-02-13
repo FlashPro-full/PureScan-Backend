@@ -47,19 +47,19 @@ export function calculateEScore(
   const fbaMaxE = fbat.maxEScore ?? 0;
   const fbaDelta = fbaMaxE - fbaMinE;
   const fbaRange = (fbat.maxSalesrank ?? 0) - (fbat.minSalesrank ?? 0);
-  if (fbaRange === 0) return fbaMaxE;
+  if (fbaRange === 0) return fbaMinE;
   const fbaRatio = (salesRank - (fbat.minSalesrank ?? 0)) / fbaRange;
-  const fbaEScore = Math.round(fbaMaxE - fbaDelta * fbaRatio);
+  const fbaEScore = Math.round(fbaMinE + fbaDelta * fbaRatio);
   const mft = findTriggerByRank(mfConfig, salesRank);
   if (!mft) return 0;
   const mfMinE = mft.minEScore ?? 0;
   const mfMaxE = mft.maxEScore ?? 0;
   const mfDelta = mfMaxE - mfMinE;
   const mfRange = (mft.maxSalesrank ?? 0) - (mft.minSalesrank ?? 0);
-  if (mfRange === 0) return mfMaxE;
+  if (mfRange === 0) return mfMinE;
   const mfRatio = (salesRank - (mft.minSalesrank ?? 0)) / mfRange;
-  const mfEScore = Math.round(mfMaxE - mfDelta * mfRatio);
-  return Math.max(fbaEScore, mfEScore);
+  const mfEScore = Math.round(mfMinE + mfDelta * mfRatio);
+  return Math.min(fbaEScore, mfEScore);
 }
 
 export function selectTargetPrice(
