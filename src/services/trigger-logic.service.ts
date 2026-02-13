@@ -39,17 +39,27 @@ function findTriggerByRank(config: any[], salesRank: number): any | null {
 export function calculateEScore(
   fbaConfig: any[],
   mfConfig: any[],
-  salesRank: number,
-  condition: "new" | "used"
+  salesRank: number
 ): number {
-  const triggers = condition === "new" ? fbaConfig : mfConfig;
-  const t = findTriggerByRank(triggers, salesRank);
-  if (!t) return 0;
-  const delta = (t.maxEScore ?? 0) - (t.minEScore ?? 0);
-  const range = (t.maxSalesrank ?? 0) - (t.minSalesrank ?? 0);
-  if (range === 0) return t.minEScore ?? 0;
-  const ratio = (salesRank - (t.minSalesrank ?? 0)) / range;
-  return Math.round((t.minEScore ?? 0) + delta * ratio);
+  const fbat = findTriggerByRank(fbaConfig, salesRank);
+  if (!fbat) return 0;
+  const fbaMinE = fbat.minEScore ?? 0;
+  const fbaMaxE = fbat.maxEScore ?? 0;
+  const fbaDelta = fbaMaxE - fbaMinE;
+  const fbaRange = (fbat.maxSalesrank ?? 0) - (fbat.minSalesrank ?? 0);
+  if (fbaRange === 0) return fbaMaxE;
+  const fbaRatio = (salesRank - (fbat.minSalesrank ?? 0)) / fbaRange;
+  const fbaEScore = Math.round(fbaMaxE - fbaDelta * fbaRatio);
+  const mft = findTriggerByRank(mfConfig, salesRank);
+  if (!mft) return 0;
+  const mfMinE = mft.minEScore ?? 0;
+  const mfMaxE = mft.maxEScore ?? 0;
+  const mfDelta = mfMaxE - mfMinE;
+  const mfRange = (mft.maxSalesrank ?? 0) - (mft.minSalesrank ?? 0);
+  if (mfRange === 0) return mfMaxE;
+  const mfRatio = (salesRank - (mft.minSalesrank ?? 0)) / mfRange;
+  const mfEScore = Math.round(mfMaxE - mfDelta * mfRatio);
+  return Math.max(fbaEScore, mfEScore);
 }
 
 export function selectTargetPrice(
@@ -59,7 +69,8 @@ export function selectTargetPrice(
   initialPrice: number,
   buyBoxNew: number,
   lowestNew: number,
-  usedOffers: { avgOf3?: number; lowest?: number; secondLowest?: number } | undefined,
+  buyBoxUsed: number,
+  usedOffers: { avgOf3?: number; lowest?: number; secondLowest?: number; thirdLowest?: number } | undefined,
   condition: "new" | "used"
 ): number {
   const triggers = condition === "new" ? fbaConfig : mfConfig;
@@ -99,6 +110,15 @@ export function selectTargetPrice(
         usedOffers.secondLowest * (plPct / 100);
       price = Math.max(price, Math.round(floor * 100) / 100);
     } else if (
+      (plOpt === "3rd Lowest Used Offer" || plOpt.includes("3rd")) &&
+      usedOffers.thirdLowest != null
+    ) {
+      const floor =
+        usedOffers.thirdLowest +
+        plBump +
+        usedOffers.thirdLowest * (plPct / 100);
+      price = Math.max(price, Math.round(floor * 100) / 100);
+    } else if (
       (plOpt === "Lowest Used Offer" || plOpt.includes("Lowest")) &&
       usedOffers.lowest != null
     ) {
@@ -108,10 +128,14 @@ export function selectTargetPrice(
     }
   }
 
+  if (t.bbCompare && buyBoxUsed > 0 && buyBoxUsed > price) {
+    price = buyBoxUsed;
+  }
+
   if (ceiling1On) {
     const ref = ceiling1Opt === "New Buy Box" ? buyBoxNew : lowestNew;
     const cap = Math.round(ref * (1 - ceiling1Disc / 100) * 100) / 100;
-    price = price < cap ? price : ref;
+    price = Math.min(price, cap);
   }
 
   if (ceiling2On && usedOffers) {
@@ -130,6 +154,15 @@ export function selectTargetPrice(
         usedOffers.secondLowest +
         c2Bump +
         usedOffers.secondLowest * (c2Pct / 100);
+      price = Math.max(price, Math.round(floor * 100) / 100);
+    } else if (
+      (c2Opt === "3rd Lowest Used Offer" || c2Opt.includes("3rd")) &&
+      usedOffers.thirdLowest != null
+    ) {
+      const floor =
+        usedOffers.thirdLowest +
+        c2Bump +
+        usedOffers.thirdLowest * (c2Pct / 100);
       price = Math.max(price, Math.round(floor * 100) / 100);
     } else if (
       (c2Opt === "Lowest Used Offer" || c2Opt.includes("Lowest")) &&

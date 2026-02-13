@@ -10,7 +10,6 @@ import {
 } from "../services/trigger-logic.service";
 import { spApiService } from "../third-party/spapi.service";
 import { getProductCondition } from "../config";
-import { defaultConfig } from "../utils/constants";
 import { ModuleEnum } from "../entities/trigger.entity";
 
 function formatCategory(category: string): string {
@@ -90,7 +89,9 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
     };
 
     const condition = getProductCondition();
-    const triggerCategory = getTriggerCategory(displayGroupRank?.websiteDisplayGroup || category);
+
+    const triggerCategory = getTriggerCategory(displayGroupRank?.websiteDisplayGroup ?? category);
+
     const userTriggers = triggerCategory
       ? await findTriggersByCondition({
           user: { id: userId },
@@ -98,16 +99,11 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
           enabled: true,
         })
       : [];
+
     const fbaTrigger = userTriggers.find((t) => t.module === ModuleEnum.FBA);
     const mfTrigger = userTriggers.find((t) => t.module === ModuleEnum.MF);
-    const fbaConfig =
-      (fbaTrigger?.config as any[]) ||
-      (triggerCategory && defaultConfig[triggerCategory as keyof typeof defaultConfig]?.fba) ||
-      [];
-    const mfConfig =
-      (mfTrigger?.config as any[]) ||
-      (triggerCategory && defaultConfig[triggerCategory as keyof typeof defaultConfig]?.mf) ||
-      [];
+    const fbaConfig = fbaTrigger?.config || [];
+    const mfConfig = mfTrigger?.config || [];
 
     const itemCondition = condition === "new" ? "New" : "Used";
     const spOffers = await spApiService.getItemOffers(asin, itemCondition);
@@ -196,9 +192,6 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
         ) / 100
     );
 
-    console.log(fbaPricesList);
-    console.log(pricesList);
-
     const tempList: any[] = [];
     pricesList.forEach((price: number) => {
       const index = tempList.findIndex((item: any) => item.price === price);
@@ -212,7 +205,36 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
       }
     });
 
+    const usedOffersRaw =
+      condition === "used"
+        ? offersList
+        : offersList.filter((o: any) =>
+            String(o?.Condition?.ConditionType ?? o?.condition ?? "").toLowerCase().includes("used")
+          );
+    const usedOffersData = usedOffersRaw
+      .map((o: any) =>
+        Math.round(
+          (Number(o?.Shipping?.Amount ?? 0) + Number(o?.ListingPrice?.Amount ?? 0)) * 100
+        ) / 100
+      )
+      .sort((a: number, b: number) => a - b);
+    const usedOffers =
+      usedOffersData.length >= 1
+        ? {
+            lowest: usedOffersData[0],
+            secondLowest: usedOffersData[1],
+            thirdLowest: usedOffersData[2],
+            avgOf3:
+              usedOffersData.length >= 3
+                ? Math.round(
+                    ((usedOffersData[0] + usedOffersData[1] + usedOffersData[2]) / 3) * 100
+                  ) / 100
+                : undefined,
+          }
+        : undefined;
+
     const initialPrice = pricesList[pricesList.length - 1] || 0;
+
     let fbaTargetPrice = selectTargetPrice(
       fbaConfig,
       mfConfig,
@@ -220,7 +242,8 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
       initialPrice,
       buyBoxNew,
       lowestNew,
-      undefined,
+      buyBoxUsed,
+      usedOffers,
       condition
     );
     let mfTargetPrice = 0;
@@ -234,7 +257,8 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
 
     let fbaProfit = 0, mfProfit = 0, sbybProfit = 0;
     const mfShippingCost = 3.89;
-    const eScore = calculateEScore(fbaConfig, mfConfig, salesRank, condition);
+    
+    const eScore = calculateEScore(fbaConfig, mfConfig, salesRank);
 
     const { fba: fbaFeeRes, mf: mfFeeRes } = await spApiService.getMyFeesEstimates(
       asin,
