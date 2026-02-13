@@ -9,6 +9,7 @@ import { Subscription } from "./entities/subscription.entity";
 import { Preference } from "./entities/preference.entity";
 import { Sound } from "./entities/sound.entity";
 import { Shipment } from "./entities/shipment.entity";
+import { Trigger } from "./entities/trigger.entity";
 
 export const AppDataSource = new DataSource({
   type: "postgres",
@@ -21,7 +22,8 @@ export const AppDataSource = new DataSource({
     Subscription,
     Preference,
     Sound,
-    Shipment
+    Shipment,
+    Trigger
   ],
   migrations: ["src/migrations/**/*.ts"],
 });

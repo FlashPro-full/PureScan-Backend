@@ -1,9 +1,17 @@
 import { Response } from "express";
 import { AuthRequest } from "../middleware/auth.middleware";
 import { saveScan, findScanListByUserId, deleteScanById } from "../services/scan.service";
+import { findTriggersByCondition } from "../services/trigger.service";
+import {
+  getTriggerCategory,
+  calculateEScore,
+  selectTargetPrice,
+  determineRoute,
+} from "../services/trigger-logic.service";
 import { spApiService } from "../third-party/spapi.service";
-import { calculateEScore, selectTargetPrice, determineRoute } from "../third-party/pallet.service";
 import { getProductCondition } from "../config";
+import { defaultConfig } from "../utils/constants";
+import { ModuleEnum } from "../entities/trigger.entity";
 
 function formatCategory(category: string): string {
   if (category.includes("book")) {
@@ -82,6 +90,25 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
     };
 
     const condition = getProductCondition();
+    const triggerCategory = getTriggerCategory(displayGroupRank?.websiteDisplayGroup || category);
+    const userTriggers = triggerCategory
+      ? await findTriggersByCondition({
+          user: { id: userId },
+          category: triggerCategory,
+          enabled: true,
+        })
+      : [];
+    const fbaTrigger = userTriggers.find((t) => t.module === ModuleEnum.FBA);
+    const mfTrigger = userTriggers.find((t) => t.module === ModuleEnum.MF);
+    const fbaConfig =
+      (fbaTrigger?.config as any[]) ||
+      (triggerCategory && defaultConfig[triggerCategory as keyof typeof defaultConfig]?.fba) ||
+      [];
+    const mfConfig =
+      (mfTrigger?.config as any[]) ||
+      (triggerCategory && defaultConfig[triggerCategory as keyof typeof defaultConfig]?.mf) ||
+      [];
+
     const itemCondition = condition === "new" ? "New" : "Used";
     const spOffers = await spApiService.getItemOffers(asin, itemCondition);
 
@@ -186,7 +213,16 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
     });
 
     const initialPrice = pricesList[pricesList.length - 1] || 0;
-    let fbaTargetPrice = selectTargetPrice(category, salesRank, initialPrice, buyBoxNew, lowestNew, undefined, condition);
+    let fbaTargetPrice = selectTargetPrice(
+      fbaConfig,
+      mfConfig,
+      salesRank,
+      initialPrice,
+      buyBoxNew,
+      lowestNew,
+      undefined,
+      condition
+    );
     let mfTargetPrice = 0;
     let sbybTargetPrice = 0;
 
@@ -198,7 +234,7 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
 
     let fbaProfit = 0, mfProfit = 0, sbybProfit = 0;
     const mfShippingCost = 3.89;
-    const eScore = calculateEScore(category, salesRank, condition);
+    const eScore = calculateEScore(fbaConfig, mfConfig, salesRank, condition);
 
     const { fba: fbaFeeRes, mf: mfFeeRes } = await spApiService.getMyFeesEstimates(
       asin,
@@ -213,7 +249,14 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
     const mfTotalFees = mfFeeRes?.FeesEstimate?.TotalFeesEstimate?.Amount || 0;
     mfProfit = Math.round((mfTargetPrice - mfTotalFees - mfShippingCost) * 100) / 100;
 
-    const { fbaAccept, mfAccept } = determineRoute(category, salesRank, eScore, fbaProfit, mfProfit);
+    const { fbaAccept, mfAccept } = determineRoute(
+      fbaConfig,
+      mfConfig,
+      salesRank,
+      eScore,
+      fbaProfit,
+      mfProfit
+    );
 
     const scanResult = {
       product: {

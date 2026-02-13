@@ -4,3 +4,4 @@ export * from './subscription.entity';
 export * from './preference.entity';
 export * from './sound.entity';
 export * from './shipment.entity';
+export * from './trigger.entity';

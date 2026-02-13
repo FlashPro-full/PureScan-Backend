@@ -5,6 +5,7 @@ import { Subscription } from './subscription.entity';
 import Model from './model.entity';
 import { Preference } from './preference.entity';
 import { Shipment } from './shipment.entity';
+import { Trigger } from './trigger.entity';
 
 export enum UserRole {
   ADMIN = 'admin',
@@ -34,6 +35,9 @@ export class User extends Model {
 
   @OneToMany(() => Shipment, (shipment) => shipment.user)
   shipments: Shipment[];
+
+  @OneToMany(() => Trigger, (trigger) => trigger.user)
+  triggers: Trigger[];
 
 }
 

@@ -16,6 +16,6 @@ export class Shipment extends Model {
     @Column({ type: 'varchar', length: 255, nullable: true })
     name: string;
 
-    @Column({ type: 'varchar', length: 255, nullable: true })
+    @Column({ type: 'boolean', default: false })
     current: boolean;
 }
