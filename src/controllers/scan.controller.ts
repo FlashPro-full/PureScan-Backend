@@ -48,17 +48,32 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    const item = spProduct.items[0];
+    const items = spProduct.items;
+
+    const condition = getProductCondition();
+    const itemCondition = condition === "new" ? "New" : "Used";
+
+    const tempResultList: any[] = await Promise.all(items.map((item: any) => spApiService.getItemOffers(item.asin, itemCondition)));
+
+    let item = null;
+    let spOffers = null;
+
+    if(tempResultList?.[0]?.payload.Summary.TotalOfferCount !== 0) {
+      item = items[0];
+      spOffers = tempResultList[0];
+    } else {
+      item = items[items.length - 1];
+      spOffers = tempResultList[items.length - 1];
+    }
+
+    const asin = item.asin;
     const attributes = item.attributes || {};
-    const dimensionsList = Array.isArray(attributes.item_dimensions)
-      ? attributes.item_dimensions
-      : [];
+    const dimensionsList = attributes.item_dimensions ?? item.dimensions;
     const imagesList = Array.isArray(item.images) ? item.images : [];
     const salesRanksList = Array.isArray(item.salesRanks)
       ? item.salesRanks
       : [];
 
-    const asin = item.asin;
     const title = attributes.item_name?.[0]?.value;
     const author = attributes.author?.[0]?.value;
     const publisher = attributes.manufacturer?.[0]?.value;
@@ -68,10 +83,7 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
       attributes.video_game_platform?.[0]?.value ||
       null;
     const itemType = attributes.item_type_keyword?.[0]?.value;
-    const weight = {
-      unit: attributes.item_weight?.[0]?.unit,
-      value: attributes.item_weight?.[0]?.value,
-    };
+    const weight = attributes.item_weight?.[0] ?? (dimensionsList?.[0] as { package?: { weight?: unknown } } | undefined)?.package?.weight;
     const dimensions = {
       length: dimensionsList?.[0]?.length,
       width: dimensionsList?.[0]?.width,
@@ -79,7 +91,7 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
     };
     const displayGroupRank = salesRanksList?.[0]?.displayGroupRanks?.[0];
     const category = formatCategory(
-      displayGroupRank?.websiteDisplayGroup
+      displayGroupRank?.websiteDisplayGroup ?? itemType
     );
     const salesRank = displayGroupRank?.rank || 0;
     const image = imagesList?.[0]?.images?.[0]?.link;
@@ -88,9 +100,7 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
       currency: attributes.list_price?.[0]?.currency,
     };
 
-    const condition = getProductCondition();
-
-    const triggerCategory = getTriggerCategory(displayGroupRank?.websiteDisplayGroup ?? category);
+    const triggerCategory = getTriggerCategory(category);
 
     const userTriggers = triggerCategory
       ? await findTriggersByCondition({
@@ -104,16 +114,6 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
     const mfTrigger = userTriggers.find((t) => t.module === ModuleEnum.MF);
     const fbaConfig = fbaTrigger?.config || [];
     const mfConfig = mfTrigger?.config || [];
-
-    const itemCondition = condition === "new" ? "New" : "Used";
-    const spOffers = await spApiService.getItemOffers(asin, itemCondition);
-
-    if (!asin) {
-      return res.status(404).json({
-        result: false,
-        error: "Product ASIN not found",
-      });
-    }
 
     const summary = spOffers?.payload?.Summary;
     const lowestPricesList = summary?.LowestPrices || [];

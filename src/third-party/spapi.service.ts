@@ -139,7 +139,7 @@ export class SPApiService {
           marketplaceIds: marketplaceId,
           identifiers: barcode,
           identifiersType: identifiersType.toUpperCase(),
-          includedData: 'attributes,productTypes,images,salesRanks',
+          includedData: 'attributes,productTypes,images,salesRanks, dimensions',
         },
       });
       return response.data;
