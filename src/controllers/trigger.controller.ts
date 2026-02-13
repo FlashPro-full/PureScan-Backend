@@ -193,3 +193,25 @@ export const updateDisplayHandler = async (req: Request, res: Response) => {
         });
     }
 }
+
+export const updateMfValueHander = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params; 
+        const mfExtraValue = req.body.mfExtraValue;
+
+        await updateTriggerById(Number(id), {
+            mfExtraValue: mfExtraValue
+        });
+
+        res.status(200).json({
+            result: true,
+            message: "Trigger mf value updated successfully"
+        }); 
+    } catch (error: any) {
+        console.error('Update trigger mf value error:', error);
+        res.status(500).json({
+            result: false,
+            error: "Failed to update trigger mf value"
+        });
+    }
+}

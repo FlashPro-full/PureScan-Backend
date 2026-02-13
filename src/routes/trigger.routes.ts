@@ -6,7 +6,8 @@ import {
     setDefaultTriggerHandler,
     updateEnabledHandler,
     updateDisabledMissingHandler,
-    updateDisplayHandler
+    updateDisplayHandler,
+    updateMfValueHander
 } from '../controllers/trigger.controller';
 
 const router = Router();
@@ -15,6 +16,7 @@ router.post('/create', createTriggerHandler);
 router.post('/fetch', getTriggerHandler);
 router.post('/default', setDefaultTriggerHandler);
 router.put('/:id/config', updateTriggerHandler);
+router.put('/:id/mfvalue', updateMfValueHander)
 router.put('/:id/enabled', updateEnabledHandler);
 router.put('/:id/missing', updateDisabledMissingHandler);
 router.put('/:id/display', updateDisplayHandler);
