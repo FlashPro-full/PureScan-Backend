@@ -1,6 +1,6 @@
 import { Response } from "express";
 import { AuthRequest } from "../middleware/auth.middleware";
-import { saveScan, findScanListByUserId, deleteScanById } from "../services/scan.service";
+import { saveScan, findScanListByUserId, deleteScanById, findScanListPaginationByUserId } from "../services/scan.service";
 import { findTriggersByCondition } from "../services/trigger.service";
 import {
   getTriggerCategory,
@@ -58,7 +58,7 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
     let item = null;
     let spOffers = null;
 
-    if(tempResultList?.[0]?.payload.Summary.TotalOfferCount !== 0) {
+    if (tempResultList?.[0]?.payload.Summary.TotalOfferCount !== 0) {
       item = items[0];
       spOffers = tempResultList[0];
     } else {
@@ -104,10 +104,10 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
 
     const userTriggers = triggerCategory
       ? await findTriggersByCondition({
-          user: { id: userId },
-          category: triggerCategory,
-          enabled: true,
-        })
+        user: { id: userId },
+        category: triggerCategory,
+        enabled: true,
+      })
       : [];
 
     const fbaTrigger = userTriggers.find((t) => t.module === ModuleEnum.FBA);
@@ -129,16 +129,10 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
       item?.condition.toLowerCase() === "new"
     ).sort((a: any, b: any) => a.LandedPrice.Amount - b.LandedPrice.Amount)[0];
     const lowestNew = lowestNewItem?.LandedPrice?.Amount || 0;
-    const lowestCollectibleItem = lowestPricesList.find((item: any) =>
-      item?.condition.toLowerCase() === "collectible" &&
-      item?.fulfillmentChannel.toLowerCase() === "merchant"
-    );
-    const lowestCollectible = lowestCollectibleItem?.LandedPrice?.Amount || 0;
-    const lowestCollectibleFBAItem = lowestPricesList.find((item: any) =>
-      item?.condition === "collectible" &&
-      item?.fulfillmentChannel === "Amazon"
-    );
-    const lowestCollectibleFBA = lowestCollectibleFBAItem?.LandedPrice?.Amount || 0;
+    const lowestUsedItem = lowestPricesList.filter((item: any) =>
+      item?.condition.toLowerCase() === "used"
+    ).sort((a: any, b: any) => a.LandedPrice.Amount - b.LandedPrice.Amount)[0];
+    const lowestUsed = lowestUsedItem?.LandedPrice?.Amount || 0;
     const mfUsedItem = numberOfOffersList.find((item: any) =>
       item?.condition.toLowerCase() === "used" &&
       item?.fulfillmentChannel.toLowerCase() === "merchant"
@@ -209,8 +203,8 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
       condition === "used"
         ? offersList
         : offersList.filter((o: any) =>
-            String(o?.Condition?.ConditionType ?? o?.condition ?? "").toLowerCase().includes("used")
-          );
+          String(o?.Condition?.ConditionType ?? o?.condition ?? "").toLowerCase().includes("used")
+        );
     const usedOffersData = usedOffersRaw
       .map((o: any) =>
         Math.round(
@@ -221,16 +215,16 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
     const usedOffers =
       usedOffersData.length >= 1
         ? {
-            lowest: usedOffersData[0],
-            secondLowest: usedOffersData[1],
-            thirdLowest: usedOffersData[2],
-            avgOf3:
-              usedOffersData.length >= 3
-                ? Math.round(
-                    ((usedOffersData[0] + usedOffersData[1] + usedOffersData[2]) / 3) * 100
-                  ) / 100
-                : undefined,
-          }
+          lowest: usedOffersData[0],
+          secondLowest: usedOffersData[1],
+          thirdLowest: usedOffersData[2],
+          avgOf3:
+            usedOffersData.length >= 3
+              ? Math.round(
+                ((usedOffersData[0] + usedOffersData[1] + usedOffersData[2]) / 3) * 100
+              ) / 100
+              : undefined,
+        }
         : undefined;
 
     const initialPrice = pricesList[pricesList.length - 1] || 0;
@@ -247,7 +241,6 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
       condition
     );
     let mfTargetPrice = 0;
-    let sbybTargetPrice = 0;
 
     if (tempList.length >= 2 && tempList[1].count > tempList[0].count) {
       mfTargetPrice = tempList[1].price;
@@ -255,9 +248,9 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
       mfTargetPrice = tempList[0].price;
     }
 
-    let fbaProfit = 0, mfProfit = 0, sbybProfit = 0;
+    let fbaProfit = 0, mfProfit = 0;
     const mfShippingCost = 3.89;
-    
+
     const eScore = calculateEScore(fbaConfig, mfConfig, salesRank);
 
     const { fba: fbaFeeRes, mf: mfFeeRes } = await spApiService.getMyFeesEstimates(
@@ -282,6 +275,22 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
       mfProfit
     );
 
+    let route = "REJECTED";
+
+    if (fbaAccept) {
+      if (condition === "new") {
+        route = "AMAZON NEW - FBA";
+      } else {
+        route = "AMAZON - FBA";
+      }
+    } else if (mfAccept) {
+      if (condition === "new") {
+        route = "AMAZON NEW - MF";
+      } else {
+        route = "AMAZON - MF";
+      }
+    }
+
     const scanResult = {
       product: {
         asin,
@@ -300,9 +309,7 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
         salesRank,
         eScore,
         buyBox: { new: buyBoxNew, used: buyBoxUsed },
-        lowestNew: lowestNew,
-        lowestCollectible: lowestCollectible,
-        lowestCollectibleFBA: lowestCollectibleFBA,
+        lowestNew: lowestNew
       },
       offers: {
         count,
@@ -318,12 +325,7 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
         targetPrice: mfTargetPrice,
         profit: mfProfit,
         accept: mfAccept
-      },
-      sbyb: {
-        targetPrice: sbybTargetPrice,
-        profit: sbybProfit,
-        accept: false
-      },
+      }
     };
 
     await saveScan({
@@ -332,14 +334,19 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
       title: title,
       image: image,
       category: category,
-      author: author,
-      publisher: publisher,
-      platform: platform,
-      itemType: itemType,
-      weight: weight,
-      dimensions: dimensions,
-      listPrice: listPrice,
-      route: fbaAccept ? "AMAZON - FBA" : mfAccept ? "AMAZON - MF" : "WHOLESALE - SBYB",
+      salesRank: salesRank,
+      eScore: eScore,
+      lowestNew: lowestNew,
+      lowestUsed: lowestUsed,
+      newBB: buyBoxNew,
+      usedBB: buyBoxUsed,
+      fbaAccept: fbaAccept,
+      mfAccept: mfAccept,
+      fbaTargetPrice: fbaTargetPrice,
+      mfTargetPrice: mfTargetPrice,
+      fbaProfit: fbaProfit,
+      mfProfit: mfProfit,
+      route: route,
       profit: fbaAccept ? fbaProfit : mfAccept ? mfProfit : 0,
     } as Partial<any>);
     return res.status(200).json({
@@ -371,6 +378,32 @@ export const getScanListHandler = async (req: AuthRequest, res: Response) => {
     res.status(500).json({
       result: true,
       error: "Failed to get scans",
+    });
+  }
+};
+
+export const getScanListPaginationHandler = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
+
+    const { scanList, total, totalPages } = await findScanListPaginationByUserId(
+      Number(userId),
+      page,
+      limit
+    );
+
+    res.status(200).json({
+      result: true,
+      scanList,
+      pagination: { page, limit, total, totalPages },
+    });
+  } catch (error: any) {
+    console.error("Get scans pagination error:", error);
+    res.status(500).json({
+      result: false,
+      error: "Failed to get scans pagination"
     });
   }
 };

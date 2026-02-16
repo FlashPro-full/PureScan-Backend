@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { AuthRequest } from "../middleware/auth.middleware";
-import { selectScanListByFromTo } from "../services/scan.service";
+import { selectExportScanList } from "../services/scan.service";
 import { findSubscriptionByUserId, updateSubscription } from "../services/subscription.service";
 import { findPreferenceByUserId, updatePreference } from "../services/preference.service";
 import { getProductCondition, toggleProductCondition } from "../config";
@@ -47,10 +47,10 @@ export const updateSubscriptionHandler = async (req: Request, res: Response) => 
 export const exportDataHandler = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { fromDate, toDate } = req.body;
+    const { fromDate, toDate, routeKinds } = req.body;
 
-    const scanList = await selectScanListByFromTo(Number(userId), new Date(fromDate), new Date(toDate));
-
+    const scanList = await selectExportScanList(Number(userId), new Date(fromDate), new Date(toDate), routeKinds);
+    
     res.setHeader("Content-Type", "application/json");
     res.setHeader(
       "Content-Disposition",

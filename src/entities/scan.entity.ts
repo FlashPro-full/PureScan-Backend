@@ -22,36 +22,41 @@ export class Scan extends Model {
   @Column({ type: 'varchar', length: 255, nullable: true })
   category: string;
 
-  @Column({ type: 'varchar', length: 255, nullable: true })
-  author: string;
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  salesRank: string;
 
-  @Column({ type: 'varchar', length: 255, nullable: true })
-  publisher: string;
+  @Column({ type: 'decimal', nullable: true })
+  eScore: number;
 
-  @Column({ type: 'varchar', length: 255, nullable: true })
-  platform: string;
+  @Column({ type: 'decimal', nullable: true })
+  lowestNew: number;
 
-  @Column({ type: 'varchar', length: 255, nullable: true })
-  itemType: string;
+  @Column({ type: 'decimal', nullable: true })
+  lowestUsed: number;
 
-  @Column({ type: 'jsonb', nullable: true })
-  weight: {
-    unit: string;
-    value: number;
-  };
+  @Column({ type: 'decimal', nullable: true })
+  newBB: number;
 
-  @Column({ type: 'jsonb', nullable: true })
-  dimensions: {
-    length: number;
-    width: number;
-    height: number;
-  };
+  @Column({ type: 'decimal', nullable: true })
+  usedBB: number;
 
-  @Column({ type: 'jsonb', nullable: true })
-  listPrice: {
-    amount: number;
-    currency: string;
-  };
+  @Column({ type: 'boolean', default: false })
+  fbaAccept: boolean;
+
+  @Column({ type: 'boolean', default: false })
+  mfAccept: boolean;
+
+  @Column({ type: 'decimal', nullable: true})
+  fbaTargetPrice: number;
+
+  @Column({ type: 'decimal', nullable: true})
+  mfTargetPrice: number;
+
+  @Column({ type: 'decimal', nullable: true})
+  fbaProfit: number;
+
+  @Column({ type: 'decimal', nullable: true})
+  mfProfit: number;
 
   @Column({ type: 'varchar', length: 100, nullable: true })
   route: string;

@@ -1,4 +1,4 @@
-import { Between } from 'typeorm';
+import { Between, In } from 'typeorm';
 import { AppDataSource } from '../data-source';
 import { Scan } from '../entities/scan.entity';
 
@@ -24,14 +24,31 @@ export const findScanListByUserId = async (userId: number) => {
     return result;
 }
 
-export const selectScanListByFromTo = async (userId: number, from: Date, to: Date) => {
+export const findScanListPaginationByUserId = async (
+    userId: number,
+    page: number = 1,
+    limit: number = 50
+) => {
+    const skip = (page - 1) * limit;
+    const [scanList, total] = await scanRepo.findAndCount({
+        where: { user: { id: userId } },
+        order: { createdAt: 'DESC' },
+        skip,
+        take: limit,
+    });
+    return { scanList, total, totalPages: Math.ceil(total / limit) };
+}
+
+export const selectExportScanList = async (userId: number, from: Date, to: Date, routeKinds: string[]) => {
     let result = null;
 
     result = await scanRepo.find({
         where: { 
             user: { id: userId },
-            createdAt: Between(from, to)
+            createdAt: Between(from, to),
+            route: In(routeKinds)
         },
+        order: { createdAt: 'DESC' }
     });
 
     return result;

@@ -13,7 +13,7 @@ const router = express.Router();
 
 router.get("/subscription", getSubscriptionHandler);
 router.put("/subscription", updateSubscriptionHandler);
-router.get("/export", exportDataHandler);
+router.post("/export", exportDataHandler);
 router.get("/preferences", getPreferencesHandler);
 router.put("/preferences", updatePreferencesHandler);
 router.get("/condition", getProductConditionHandler);
