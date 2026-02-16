@@ -133,6 +133,10 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
       item?.condition.toLowerCase() === "used"
     ).sort((a: any, b: any) => a.LandedPrice.Amount - b.LandedPrice.Amount)[0];
     const lowestUsed = lowestUsedItem?.LandedPrice?.Amount || 0;
+    const lowestCollectibleItem = lowestPricesList.filter((item: any) =>
+      item?.condition.toLowerCase() === "collectible"
+    ).sort((a: any, b: any) => a.LandedPrice.Amount - b.LandedPrice.Amount)[0];
+    const lowestCollectible = lowestCollectibleItem?.LandedPrice?.Amount || 0;
     const mfUsedItem = numberOfOffersList.find((item: any) =>
       item?.condition.toLowerCase() === "used" &&
       item?.fulfillmentChannel.toLowerCase() === "merchant"
@@ -166,86 +170,102 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
       collectible
     };
 
-    const fbaOffersList = offersList.filter(
-      (item: any) => item?.IsFulfilledByAmazon
-    );
-    const pricesList = offersList.map(
-      (item: any) =>
-        Math.round(
-          (Number(item?.Shipping?.Amount) +
-            Number(item?.ListingPrice?.Amount)) *
-          100
-        ) / 100
-    );
-    const fbaPricesList = fbaOffersList.map(
-      (item: any) =>
-        Math.round(
-          (Number(item?.Shipping?.Amount) +
-            Number(item?.ListingPrice?.Amount)) *
-          100
-        ) / 100
-    );
-
-    const tempList: any[] = [];
-    pricesList.forEach((price: number) => {
-      const index = tempList.findIndex((item: any) => item.price === price);
-      if (index > -1) {
-        tempList[index].count++;
-      } else {
-        tempList.push({
-          count: 1,
-          price: price,
-        });
-      }
-    });
-
-    const usedOffersRaw =
-      condition === "used"
-        ? offersList
-        : offersList.filter((o: any) =>
-          String(o?.Condition?.ConditionType ?? o?.condition ?? "").toLowerCase().includes("used")
-        );
-    const usedOffersData = usedOffersRaw
-      .map((o: any) =>
-        Math.round(
-          (Number(o?.Shipping?.Amount ?? 0) + Number(o?.ListingPrice?.Amount ?? 0)) * 100
-        ) / 100
-      )
-      .sort((a: number, b: number) => a - b);
-    const usedOffers =
-      usedOffersData.length >= 1
-        ? {
-          lowest: usedOffersData[0],
-          secondLowest: usedOffersData[1],
-          thirdLowest: usedOffersData[2],
-          avgOf3:
-            usedOffersData.length >= 3
-              ? Math.round(
-                ((usedOffersData[0] + usedOffersData[1] + usedOffersData[2]) / 3) * 100
-              ) / 100
-              : undefined,
-        }
-        : undefined;
-
-    const initialPrice = pricesList[pricesList.length - 1] || 0;
-
-    let fbaTargetPrice = selectTargetPrice(
-      fbaConfig,
-      mfConfig,
-      salesRank,
-      initialPrice,
-      buyBoxNew,
-      lowestNew,
-      buyBoxUsed,
-      usedOffers,
-      condition
-    );
+    let fbaTargetPrice = 0;
     let mfTargetPrice = 0;
+    let pricesList: number[] = [];
+    let fbaPricesList: number[] = [];
 
-    if (tempList.length >= 2 && tempList[1].count > tempList[0].count) {
-      mfTargetPrice = tempList[1].price;
-    } else if (tempList.length >= 1) {
-      mfTargetPrice = tempList[0].price;
+    if (offersList.length === 0) {
+      fbaTargetPrice = lowestCollectible;
+      mfTargetPrice = lowestCollectible;
+      pricesList = [lowestCollectible];
+      fbaPricesList = [lowestCollectible];
+    } else {
+      const fbaOffersList = offersList.filter(
+        (item: any) => item?.IsFulfilledByAmazon
+      );
+      pricesList = offersList.map(
+        (item: any) =>
+          Math.round(
+            (Number(item?.Shipping?.Amount) +
+              Number(item?.ListingPrice?.Amount)) *
+            100
+          ) / 100
+      );
+      fbaPricesList = fbaOffersList.map(
+        (item: any) =>
+          Math.round(
+            (Number(item?.Shipping?.Amount) +
+              Number(item?.ListingPrice?.Amount)) *
+            100
+          ) / 100
+      );
+
+      const tempList: any[] = [];
+      pricesList.forEach((price: number) => {
+        const index = tempList.findIndex((item: any) => item.price === price);
+        if (index > -1) {
+          tempList[index].count++;
+        } else {
+          tempList.push({
+            count: 1,
+            price: price,
+          });
+        }
+      });
+
+      const usedOffersRaw =
+        condition === "used"
+          ? offersList
+          : offersList.filter((o: any) =>
+            String(o?.Condition?.ConditionType ?? o?.condition ?? "").toLowerCase().includes("used")
+          );
+      const usedOffersData = usedOffersRaw
+        .map((o: any) =>
+          Math.round(
+            (Number(o?.Shipping?.Amount ?? 0) + Number(o?.ListingPrice?.Amount ?? 0)) * 100
+          ) / 100
+        )
+        .sort((a: number, b: number) => a - b);
+      const usedOffers =
+        usedOffersData.length >= 1
+          ? {
+            lowest: usedOffersData[0],
+            secondLowest: usedOffersData[1],
+            thirdLowest: usedOffersData[2],
+            avgOf3:
+              usedOffersData.length >= 3
+                ? Math.round(
+                  ((usedOffersData[0] + usedOffersData[1] + usedOffersData[2]) / 3) * 100
+                ) / 100
+                : undefined,
+          }
+          : undefined;
+
+      const sortedFba = [...fbaPricesList].sort((a, b) => a - b);
+      const sortedAll = [...pricesList].sort((a, b) => a - b);
+      const initialPrice = sortedFba.length > 0 ? sortedFba[0] : (sortedAll[0] ?? 0);
+
+      fbaTargetPrice = selectTargetPrice(
+        fbaConfig,
+        mfConfig,
+        salesRank,
+        initialPrice,
+        buyBoxNew,
+        lowestNew,
+        buyBoxUsed,
+        usedOffers,
+        "FBA",
+        fbaTrigger?.missingOptions ?? undefined,
+        fbaTrigger?.disabledMissing ?? true
+      );
+      mfTargetPrice = 0;
+      const sortedTempList = [...tempList].sort(
+        (a, b) => b.count - a.count || a.price - b.price
+      );
+      if (sortedTempList.length >= 1) {
+        mfTargetPrice = sortedTempList[0].price;
+      }
     }
 
     let fbaProfit = 0, mfProfit = 0;

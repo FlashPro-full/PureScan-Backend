@@ -71,12 +71,31 @@ export function selectTargetPrice(
   lowestNew: number,
   buyBoxUsed: number,
   usedOffers: { avgOf3?: number; lowest?: number; secondLowest?: number; thirdLowest?: number } | undefined,
-  condition: "new" | "used"
+  route: "FBA" | "MF",
+  missingOptions?: { targetPricePercentage?: number; fixedPrice?: number },
+  disabledMissing?: boolean
 ): number {
-  const triggers = condition === "new" ? fbaConfig : mfConfig;
+  const triggers = route === "FBA" ? fbaConfig : mfConfig;
   const t = findTriggerByRank(triggers, salesRank);
   if (!t) return 0;
+
+  const hasUsedOffers = !!(
+    usedOffers &&
+    (usedOffers.lowest != null ||
+      usedOffers.secondLowest != null ||
+      usedOffers.thirdLowest != null ||
+      usedOffers.avgOf3 != null)
+  );
+  const hasNewOffers = buyBoxNew > 0 || lowestNew > 0;
+
+  if (disabledMissing && (!hasUsedOffers || !hasNewOffers)) return 0;
+
   let price = initialPrice;
+  if (!hasNewOffers && missingOptions?.fixedPrice != null) {
+    price = missingOptions.fixedPrice;
+  } else if (!hasUsedOffers && missingOptions?.targetPricePercentage != null && lowestNew > 0) {
+    price = Math.round(lowestNew * (missingOptions.targetPricePercentage / 100) * 100) / 100;
+  }
 
   const ceiling1On = t.ceiling1 && t.ceiling1Options;
   const ceiling1Opt = t.ceiling1Options?.options || "New Buy Box";
@@ -132,7 +151,7 @@ export function selectTargetPrice(
     price = buyBoxUsed;
   }
 
-  if (ceiling1On) {
+  if (ceiling1On && hasNewOffers) {
     const ref = ceiling1Opt === "New Buy Box" ? buyBoxNew : lowestNew;
     const cap = Math.round(ref * (1 - ceiling1Disc / 100) * 100) / 100;
     price = Math.min(price, cap);
@@ -174,7 +193,32 @@ export function selectTargetPrice(
     }
   }
 
-  return price;
+  if (!hasUsedOffers || !hasNewOffers) return price;
+
+  const candidates: number[] = [];
+  if (initialPrice > 0) candidates.push(initialPrice);
+  if (buyBoxNew > 0) candidates.push(buyBoxNew);
+  if (lowestNew > 0) candidates.push(lowestNew);
+  if (buyBoxUsed > 0) candidates.push(buyBoxUsed);
+  if (usedOffers) {
+    if (usedOffers.lowest != null && usedOffers.lowest > 0) candidates.push(usedOffers.lowest);
+    if (usedOffers.secondLowest != null && usedOffers.secondLowest > 0) candidates.push(usedOffers.secondLowest);
+    if (usedOffers.thirdLowest != null && usedOffers.thirdLowest > 0) candidates.push(usedOffers.thirdLowest);
+    if (usedOffers.avgOf3 != null && usedOffers.avgOf3 > 0) candidates.push(usedOffers.avgOf3);
+  }
+
+  if (candidates.length === 0) return price;
+  const uniqueCandidates = [...new Set(candidates)];
+  let best = uniqueCandidates[0];
+  let bestDiff = Math.abs(uniqueCandidates[0] - price);
+  for (let i = 1; i < uniqueCandidates.length; i++) {
+    const d = Math.abs(uniqueCandidates[i] - price);
+    if (d < bestDiff) {
+      bestDiff = d;
+      best = uniqueCandidates[i];
+    }
+  }
+  return best;
 }
 
 export function determineRoute(
