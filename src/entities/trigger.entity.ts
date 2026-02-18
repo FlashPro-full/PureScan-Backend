@@ -56,7 +56,7 @@ export class Trigger extends Model {
         targetProfit?: number;
         ceiling1?: boolean;
         ceiling1Options?: {
-            options: string;
+            option: string;
             discount: number;
         };
         primeLess?: boolean;
