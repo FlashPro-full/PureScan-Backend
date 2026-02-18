@@ -14,7 +14,7 @@ export const defaultConfig = {
                 targetProfit: 1,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "New Buy Box",
+                    option: "New Buy Box",
                     discount: 5
                 },
                 primeLess: true,
@@ -45,7 +45,7 @@ export const defaultConfig = {
                 targetProfit: 1.25,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "New Buy Box",
+                    option: "New Buy Box",
                     discount: 10
                 },
                 primeLess: true,
@@ -76,7 +76,7 @@ export const defaultConfig = {
                 targetProfit: 1.75,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "New Buy Box",
+                    option: "New Buy Box",
                     discount: 10
                 },
                 primeLess: true,
@@ -107,7 +107,7 @@ export const defaultConfig = {
                 targetProfit: 2.5,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "New Buy Box",
+                    option: "New Buy Box",
                     discount: 10
                 },
                 primeLess: true,
@@ -138,7 +138,7 @@ export const defaultConfig = {
                 targetProfit: 3.5,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "New Buy Box",
+                    option: "New Buy Box",
                     discount: 10
                 },
                 primeLess: true,
@@ -168,7 +168,7 @@ export const defaultConfig = {
                 targetProfit: 7.5,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "New Buy Box",
+                    option: "New Buy Box",
                     discount: 10
                 },
                 primeLess: false,
@@ -188,7 +188,7 @@ export const defaultConfig = {
                 targetProfit: 15,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "Lowest New Price",
+                    option: "Lowest New Price",
                     discount: 20
                 },
                 primeLess: false,
@@ -208,7 +208,7 @@ export const defaultConfig = {
                 targetProfit: 50,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "Lowest New Price",
+                    option: "Lowest New Price",
                     discount: 20
                 },
                 primeLess: false,
@@ -227,7 +227,7 @@ export const defaultConfig = {
                 targetProfit: 100,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "Lowest New Price",
+                    option: "Lowest New Price",
                     discount: 20
                 },
                 primeLess: false,
@@ -249,7 +249,7 @@ export const defaultConfig = {
                 targetProfit: 1,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "Lowest New Price",
+                    option: "Lowest New Price",
                     discount: 5
                 },
                 alwaysReject: false
@@ -266,7 +266,7 @@ export const defaultConfig = {
                 targetProfit: 1.25,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "Lowest New Price",
+                    option: "Lowest New Price",
                     discount: 10
                 },                
                 alwaysReject: false
@@ -283,7 +283,7 @@ export const defaultConfig = {
                 targetProfit: 1.75,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "Lowest New Price",
+                    option: "Lowest New Price",
                     discount: 10
                 },
                 alwaysReject: false
@@ -300,7 +300,7 @@ export const defaultConfig = {
                 targetProfit: 2.5,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "Lowest New Price",
+                    option: "Lowest New Price",
                     discount: 10
                 },
                 alwaysReject: false
@@ -317,7 +317,7 @@ export const defaultConfig = {
                 targetProfit: 3.5,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "Lowest New Price",
+                    option: "Lowest New Price",
                     discount: 10
                 },
                 alwaysReject: false
@@ -334,7 +334,7 @@ export const defaultConfig = {
                 targetProfit: 7.5,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "Lowest New Price",
+                    option: "Lowest New Price",
                     discount: 10
                 },
                 alwaysReject: false
@@ -351,7 +351,7 @@ export const defaultConfig = {
                 targetProfit: 15,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "Lowest New Price",
+                    option: "Lowest New Price",
                     discount: 20
                 },
                 alwaysReject: false
@@ -368,7 +368,7 @@ export const defaultConfig = {
                 targetProfit: 50,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "Lowest New Price",
+                    option: "Lowest New Price",
                     discount: 20
                 },
                 alwaysReject: false
@@ -385,7 +385,7 @@ export const defaultConfig = {
                 targetProfit: 100,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "Lowest New Price",
+                    option: "Lowest New Price",
                     discount: 20
                 },
                 alwaysReject: true
@@ -407,7 +407,7 @@ export const defaultConfig = {
                 targetProfit: 1,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "New Buy Box",
+                    option: "New Buy Box",
                     discount: 5
                 },
                 primeLess: true,
@@ -438,7 +438,7 @@ export const defaultConfig = {
                 targetProfit: 1.25,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "New Buy Box",
+                    option: "New Buy Box",
                     discount: 10
                 },
                 primeLess: true,
@@ -469,7 +469,7 @@ export const defaultConfig = {
                 targetProfit: 2,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "New Buy Box",
+                    option: "New Buy Box",
                     discount: 10
                 },
                 primeLess: true,
@@ -500,7 +500,7 @@ export const defaultConfig = {
                 targetProfit: 2.5,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "New Buy Box",
+                    option: "New Buy Box",
                     discount: 15
                 },
                 primeLess: true,
@@ -530,7 +530,7 @@ export const defaultConfig = {
                 targetProfit: 6,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "Lowest New Price",
+                    option: "Lowest New Price",
                     discount: 15
                 },
                 primeLess: false,
@@ -550,7 +550,7 @@ export const defaultConfig = {
                 targetProfit: 50,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "Lowest New Price",
+                    option: "Lowest New Price",
                     discount: 20
                 },
                 primeLess: false,
@@ -572,7 +572,7 @@ export const defaultConfig = {
                 targetProfit: 1,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "Lowest New Price",
+                    option: "Lowest New Price",
                     discount: 5
                 },
                 alwaysReject: false
@@ -589,7 +589,7 @@ export const defaultConfig = {
                 targetProfit: 1.5,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "Lowest New Price",
+                    option: "Lowest New Price",
                     discount: 10
                 },                
                 alwaysReject: false
@@ -606,7 +606,7 @@ export const defaultConfig = {
                 targetProfit: 2,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "Lowest New Price",
+                    option: "Lowest New Price",
                     discount: 10
                 },
                 alwaysReject: false
@@ -623,7 +623,7 @@ export const defaultConfig = {
                 targetProfit: 2.5,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "Lowest New Price",
+                    option: "Lowest New Price",
                     discount: 10
                 },
                 alwaysReject: false
@@ -645,7 +645,7 @@ export const defaultConfig = {
                 targetProfit: 1,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "New Buy Box",
+                    option: "New Buy Box",
                     discount: 5
                 },
                 primeLess: true,
@@ -676,7 +676,7 @@ export const defaultConfig = {
                 targetProfit: 1.5,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "New Buy Box",
+                    option: "New Buy Box",
                     discount: 10
                 },
                 primeLess: true,
@@ -707,7 +707,7 @@ export const defaultConfig = {
                 targetProfit: 2,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "New Buy Box",
+                    option: "New Buy Box",
                     discount: 10
                 },
                 primeLess: true,
@@ -738,7 +738,7 @@ export const defaultConfig = {
                 targetProfit: 2.5,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "New Buy Box",
+                    option: "New Buy Box",
                     discount: 10
                 },
                 primeLess: true,
@@ -768,7 +768,7 @@ export const defaultConfig = {
                 targetProfit: 5,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "Lowest New Price",
+                    option: "Lowest New Price",
                     discount: 15
                 },
                 primeLess: false,
@@ -788,7 +788,7 @@ export const defaultConfig = {
                 targetProfit: 50,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "Lowest New Price",
+                    option: "Lowest New Price",
                     discount: 20
                 },
                 primeLess: false,
@@ -810,7 +810,7 @@ export const defaultConfig = {
                 targetProfit: 1,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "Lowest New Price",
+                    option: "Lowest New Price",
                     discount: 5
                 },
                 alwaysReject: false
@@ -827,7 +827,7 @@ export const defaultConfig = {
                 targetProfit: 1.5,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "Lowest New Price",
+                    option: "Lowest New Price",
                     discount: 10
                 },                
                 alwaysReject: false
@@ -844,7 +844,7 @@ export const defaultConfig = {
                 targetProfit: 2,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "Lowest New Price",
+                    option: "Lowest New Price",
                     discount: 10
                 },
                 alwaysReject: false
@@ -861,7 +861,7 @@ export const defaultConfig = {
                 targetProfit: 2.5,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "Lowest New Price",
+                    option: "Lowest New Price",
                     discount: 10
                 },
                 alwaysReject: false
@@ -878,7 +878,7 @@ export const defaultConfig = {
                 targetProfit: 5,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "Lowest New Price",
+                    option: "Lowest New Price",
                     discount: 15
                 },
                 alwaysReject: false
@@ -895,7 +895,7 @@ export const defaultConfig = {
                 targetProfit: 50,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "Lowest New Price",
+                    option: "Lowest New Price",
                     discount: 20
                 },
                 alwaysReject: true
@@ -917,7 +917,7 @@ export const defaultConfig = {
                 targetProfit: 1,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "New Buy Box",
+                    option: "New Buy Box",
                     discount: 5
                 },
                 primeLess: true,
@@ -948,7 +948,7 @@ export const defaultConfig = {
                 targetProfit: 1.5,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "New Buy Box",
+                    option: "New Buy Box",
                     discount: 10
                 },
                 primeLess: true,
@@ -979,7 +979,7 @@ export const defaultConfig = {
                 targetProfit: 2,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "New Buy Box",
+                    option: "New Buy Box",
                     discount: 10
                 },
                 primeLess: true,
@@ -1010,7 +1010,7 @@ export const defaultConfig = {
                 targetProfit: 2.5,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "New Buy Box",
+                    option: "New Buy Box",
                     discount: 10
                 },
                 primeLess: true,
@@ -1040,7 +1040,7 @@ export const defaultConfig = {
                 targetProfit: 5,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "Lowest New Price",
+                    option: "Lowest New Price",
                     discount: 15
                 },
                 primeLess: false,
@@ -1060,7 +1060,7 @@ export const defaultConfig = {
                 targetProfit: 50,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "Lowest New Price",
+                    option: "Lowest New Price",
                     discount: 20
                 },
                 primeLess: false,
@@ -1082,7 +1082,7 @@ export const defaultConfig = {
                 targetProfit: 1,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "Lowest New Price",
+                    option: "Lowest New Price",
                     discount: 5
                 },
                 alwaysReject: false
@@ -1099,7 +1099,7 @@ export const defaultConfig = {
                 targetProfit: 1.5,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "Lowest New Price",
+                    option: "Lowest New Price",
                     discount: 10
                 },                
                 alwaysReject: false
@@ -1116,7 +1116,7 @@ export const defaultConfig = {
                 targetProfit: 2,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "Lowest New Price",
+                    option: "Lowest New Price",
                     discount: 10
                 },
                 alwaysReject: false
@@ -1133,7 +1133,7 @@ export const defaultConfig = {
                 targetProfit: 2.5,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "Lowest New Price",
+                    option: "Lowest New Price",
                     discount: 10
                 },
                 alwaysReject: false
@@ -1150,7 +1150,7 @@ export const defaultConfig = {
                 targetProfit: 5,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "Lowest New Price",
+                    option: "Lowest New Price",
                     discount: 15
                 },
                 alwaysReject: false
@@ -1167,7 +1167,7 @@ export const defaultConfig = {
                 targetProfit: 50,
                 ceiling1: true,
                 ceiling1Options: {
-                    options: "Lowest New Price",
+                    option: "Lowest New Price",
                     discount: 20
                 },
                 alwaysReject: true

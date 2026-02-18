@@ -42,7 +42,7 @@ function findMatchingTrigger(config: any[], salesRank: number, eScore: number): 
 function findTriggerByRank(config: any[], salesRank: number): any | null {
   if (!config?.length) return null;
   for (const t of config) {
-    if (salesRank >= (t.minSalesrank ?? 0) &&salesRank <= (t.maxSalesrank ?? Infinity))
+    if (salesRank >= (t.minSalesrank ?? 0) && salesRank <= (t.maxSalesrank ?? Infinity))
       return t;
   }
   return null;
@@ -84,7 +84,7 @@ export type targetPriceInput = {
     bbCompare?: boolean;
     amazonOffPercentage?: number;
     ceiling1?: boolean;
-    ceiling1Options?: { options: string; discount: number };
+    ceiling1Options?: { option: string; discount: number };
     primeLess?: boolean;
     primeLessOptions?: { option: string; bumpUpDollars: number; bumpUpPercentage: number };
     ceiling2?: boolean;
@@ -139,53 +139,72 @@ export function determineTargetPrice(input: targetPriceInput): number {
     : Math.max(0, prices.length - 1);
 
   let initialPrice = 0;
-  if(route === "FBA") {
+  if (route === "FBA") {
     initialPrice = fbaPrices?.[fbaSlot] ? fbaPrices[fbaSlot] : prices[slot];
+
+    let priceAfterBBCompare = initialPrice;
+    if (settings.bbCompare && buyBoxPrice && buyBoxPrice > initialPrice) {
+      priceAfterBBCompare = buyBoxPrice;
+    }
+
+    let amazonCap: number = Infinity;
+    if (amazonPrice != null && amazonPrice > 0 && (settings.amazonOffPercentage ?? 0) > 0) {
+      amazonCap = Math.round(amazonPrice * (1 - (settings.amazonOffPercentage ?? 0) / 100) * 100) / 100;
+    }
+
+    let ceiling1Cap: number = Infinity;
+    if (settings.ceiling1 && settings.ceiling1Options) {
+      if (settings.ceiling1Options.option === "Lowest New Price") {
+        ceiling1Cap = Math.round(lowestNewPrice * (1 - (settings.ceiling1Options.discount ?? 0) / 100) * 100) / 100;
+      } else if (settings.ceiling1Options.option === "New Buy Box") {
+        ceiling1Cap = Math.round(buyBoxNew * (1 - (settings.ceiling1Options.discount ?? 0) / 100) * 100) / 100;
+      }
+    }
+
+    let primeLessCap: number = Infinity;
+    if (settings.primeLess && settings.primeLessOptions) {
+      primeLessCap = refCap(
+        offers ?? {},
+        settings.primeLessOptions.option,
+        settings.primeLessOptions.bumpUpDollars ?? 0,
+        settings.primeLessOptions.bumpUpPercentage ?? 0,
+        "min") ?? Infinity;
+    }
+
+    let ceiling2Cap: number = Infinity;
+    if (settings.ceiling2 && settings.ceiling2Options) {
+      ceiling2Cap = refCap(offers ?? {},
+        settings.ceiling2Options.option,
+        settings.ceiling2Options.bumpUpDollars ?? 0,
+        settings.ceiling2Options.bumpUpPercentage ?? 0,
+        "min") ?? Infinity;
+    }
+
+    const current = Math.min(priceAfterBBCompare, amazonCap, ceiling1Cap, primeLessCap, ceiling2Cap);
+    const targetPrice = Math.max(0, Math.round(current * 100) / 100);
+    return targetPrice;
   } else {
     initialPrice = prices[slot];
-  }
 
-  let priceAfterBBCompare = initialPrice;
-  if (settings.bbCompare && buyBoxPrice && buyBoxPrice > initialPrice) {
-    priceAfterBBCompare = buyBoxPrice;
-  }
-
-  let amazonCap: number = Infinity;
-  if (amazonPrice != null && amazonPrice > 0 && (settings.amazonOffPercentage ?? 0) > 0) {
-    amazonCap = Math.round(amazonPrice * (1 - (settings.amazonOffPercentage ?? 0) / 100) * 100) / 100;
-  }
-
-  let ceiling1Cap: number = Infinity;
-  if (settings.ceiling1 && settings.ceiling1Options) {
-    if (settings.ceiling1Options.options === "Lowest New Price") {
-      ceiling1Cap = Math.round(lowestNewPrice * (1 - (settings.ceiling1Options.discount ?? 0) / 100) * 100) / 100;
-    } else if (settings.ceiling1Options.options === "New Buy Box") {
-      ceiling1Cap = Math.round(buyBoxNew * (1 - (settings.ceiling1Options.discount ?? 0) / 100) * 100) / 100;
+    let amazonCap: number = Infinity;
+    if (amazonPrice != null && amazonPrice > 0 && (settings.amazonOffPercentage ?? 0) > 0) {
+      amazonCap = Math.round(amazonPrice * (1 - (settings.amazonOffPercentage ?? 0) / 100) * 100) / 100;
     }
+
+    let ceiling1Cap: number = Infinity;
+    if (settings.ceiling1 && settings.ceiling1Options) {
+      if (settings.ceiling1Options.option === "Lowest New Price") {
+        ceiling1Cap = Math.round(lowestNewPrice * (1 - (settings.ceiling1Options.discount ?? 0) / 100) * 100) / 100;
+      } else if (settings.ceiling1Options.option === "New Buy Box") {
+        ceiling1Cap = Math.round(buyBoxNew * (1 - (settings.ceiling1Options.discount ?? 0) / 100) * 100) / 100;
+      }
+    }
+
+    const current = Math.min(initialPrice, amazonCap, ceiling1Cap);
+    const targetPrice = Math.max(0, Math.round(current * 100) / 100);
+    return targetPrice;
   }
 
-  let primeLessCap: number = Infinity;
-  if (settings.primeLess && settings.primeLessOptions) {
-    primeLessCap = refCap(
-      offers ?? {},
-      settings.primeLessOptions.option,
-      settings.primeLessOptions.bumpUpDollars ?? 0,
-      settings.primeLessOptions.bumpUpPercentage ?? 0,
-      "min") ?? Infinity;
-  }
-
-  let ceiling2Cap: number = Infinity;
-  if (settings.ceiling2 && settings.ceiling2Options) {
-    ceiling2Cap = refCap(offers ?? {},
-      settings.ceiling2Options.option,
-      settings.ceiling2Options.bumpUpDollars ?? 0,
-      settings.ceiling2Options.bumpUpPercentage ?? 0,
-      "min") ?? Infinity;
-  }
-
-  const current = Math.min(priceAfterBBCompare, amazonCap, ceiling1Cap, primeLessCap, ceiling2Cap);
-  const targetPrice = Math.max(0, Math.round(current * 100) / 100);
-  return targetPrice;
 }
 
 function selectFBATargetPrice(
@@ -204,7 +223,7 @@ function selectFBATargetPrice(
   return determineTargetPrice({
     settings: {
       fbaSlot: t.fbaSlot,
-      slot: t.slot,
+      slot: t.usedSlot,
       bbCompare: t.bbCompare,
       amazonOffPercentage: t.amazonOffPercentage,
       ceiling1: t.ceiling1,
@@ -238,7 +257,7 @@ function selectMFTargetPrice(
   if (!t) return 0;
   return determineTargetPrice({
     settings: {
-      slot: t.slot,
+      slot: t.usedSlot,
       amazonOffPercentage: t.amazonOffPercentage,
       ceiling1: t.ceiling1,
       ceiling1Options: t.ceiling1Options,
@@ -303,7 +322,7 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
     const condition = getProductCondition();
     const itemCondition = condition === "new" ? "New" : "Used";
 
-    const tempResultList: any[] = await Promise.all(items.map((item: any) => 
+    const tempResultList: any[] = await Promise.all(items.map((item: any) =>
       spApiService.getItemOffers(item.asin, itemCondition))
     );
 
@@ -334,21 +353,22 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
       null;
     const itemType = attributes.item_type_keyword?.[0]?.value;
 
-    let weight = 0;
+    let weight = null;
     let dimensions = null;
     const itemData = dimensionsList?.[0]?.item || 0;
-    const itemWeight = Math.round(itemData.weight * 100) / 100;
+    const itemWeight = Math.round(itemData?.weight?.value * 100) / 100;
     const packageData = dimensionsList?.[0]?.package || 0;
-    const packageWeight = Math.round(packageData.weight * 100) / 100;
-    if(itemWeight >= 0.01) {
-      weight = itemWeight;
-      dimensions = {
-        length: itemData.length,
-        width: itemData.width,
-        height: itemData.height,
+    const packageWeight = Math.round(packageData?.weight?.value * 100) / 100;
+    if (itemWeight >= 0.01) {
+      weight = {
+        unit: itemData?.weight?.unit,
+        value: itemWeight
       };
-    } else if (packageWeight >= 0.01) {
-      weight = packageWeight;
+    } else {
+      weight = {
+        unit: packageData?.weight?.unit,
+        value: packageWeight
+      };
       dimensions = {
         length: packageData.length,
         width: packageData.width,
@@ -478,7 +498,14 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
 
       const amazonPrice = fbaPricesList.find((item: any) => item?.IsEligibleForSuperSaverShipping);
 
-      fbaTargetPrice = selectFBATargetPrice(fbaConfig, salesRank, fbaPricesList, pricesList, offersList, condition === "new" ? buyBoxNew : buyBoxUsed, lowestNew, buyBoxNew, amazonPrice);
+      const lowestOffers = {
+        avgOf3: Math.round((pricesList[0] + pricesList[1] + pricesList[2]) / 3 * 100) / 100,
+        lowest: pricesList[0],
+        secondLowest: pricesList[1],
+        thirdLowest: pricesList[2]
+      }
+
+      fbaTargetPrice = selectFBATargetPrice(fbaConfig, salesRank, fbaPricesList, pricesList, lowestOffers, condition === "new" ? buyBoxNew : buyBoxUsed, lowestNew, buyBoxNew, amazonPrice);
       mfTargetPrice = selectMFTargetPrice(mfConfig, salesRank, pricesList, condition === "new" ? buyBoxNew : buyBoxUsed, lowestNew, buyBoxNew, amazonPrice);
 
     }
