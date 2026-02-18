@@ -2,12 +2,6 @@ import { Response } from "express";
 import { AuthRequest } from "../middleware/auth.middleware";
 import { saveScan, findScanListByUserId, deleteScanById, findScanListPaginationByUserId } from "../services/scan.service";
 import { findTriggersByCondition } from "../services/trigger.service";
-import {
-  getTriggerCategory,
-  calculateEScore,
-  selectTargetPrice,
-  determineRoute,
-} from "../services/trigger-logic.service";
 import { spApiService } from "../third-party/spapi.service";
 import { getProductCondition } from "../config";
 import { ModuleEnum } from "../entities/trigger.entity";
@@ -25,6 +19,262 @@ function formatCategory(category: string): string {
 
   return "Others";
 }
+
+function getTriggerCategory(displayCategory: string): string | null {
+  const s = (displayCategory || "").toLowerCase();
+  if (s.includes("book")) return "Books";
+  if (s.includes("music") || s === "cd") return "Music";
+  if (s.includes("video game") || s.includes("videogame")) return "VideoGames";
+  if (s.includes("video") || s.includes("dvd") || s.includes("blu")) return "Videos";
+  return null;
+}
+
+function findMatchingTrigger(config: any[], salesRank: number, eScore: number): any | null {
+  if (!config?.length) return null;
+  for (const t of config) {
+    const rankMatch = salesRank >= (t.minSalesrank ?? 0) && salesRank <= (t.maxSalesrank ?? Infinity);
+    const eScoreMatch = eScore >= (t.minEScore ?? 0) && eScore <= (t.maxEScore ?? 999);
+    if (rankMatch && eScoreMatch) return t;
+  }
+  return null;
+}
+
+function findTriggerByRank(config: any[], salesRank: number): any | null {
+  if (!config?.length) return null;
+  for (const t of config) {
+    if (salesRank >= (t.minSalesrank ?? 0) &&salesRank <= (t.maxSalesrank ?? Infinity))
+      return t;
+  }
+  return null;
+}
+
+function calculateEScore(fbaConfig: any[], mfConfig: any[], salesRank: number): number {
+  const fbat = findTriggerByRank(fbaConfig, salesRank);
+  if (!fbat) return 0;
+  const fbaMinE = fbat.minEScore ?? 0;
+  const fbaMaxE = fbat.maxEScore ?? 0;
+  const fbaDelta = fbaMaxE - fbaMinE;
+  const fbaRange = (fbat.maxSalesrank ?? 0) - (fbat.minSalesrank ?? 0);
+  if (fbaRange === 0) return fbaMinE;
+  const fbaRatio = (salesRank - (fbat.minSalesrank ?? 0)) / fbaRange;
+  const fbaEScore = Math.round(fbaMinE + fbaDelta * fbaRatio);
+  const mft = findTriggerByRank(mfConfig, salesRank);
+  if (!mft) return 0;
+  const mfMinE = mft.minEScore ?? 0;
+  const mfMaxE = mft.maxEScore ?? 0;
+  const mfDelta = mfMaxE - mfMinE;
+  const mfRange = (mft.maxSalesrank ?? 0) - (mft.minSalesrank ?? 0);
+  if (mfRange === 0) return mfMinE;
+  const mfRatio = (salesRank - (mft.minSalesrank ?? 0)) / mfRange;
+  const mfEScore = Math.round(mfMinE + mfDelta * mfRatio);
+  return Math.min(fbaEScore, mfEScore);
+}
+
+export type offersRef = {
+  avgOf3?: number;
+  lowest?: number;
+  secondLowest?: number;
+  thirdLowest?: number;
+};
+
+export type targetPriceInput = {
+  settings: {
+    fbaSlot?: number;
+    slot?: number;
+    bbCompare?: boolean;
+    amazonOffPercentage?: number;
+    ceiling1?: boolean;
+    ceiling1Options?: { options: string; discount: number };
+    primeLess?: boolean;
+    primeLessOptions?: { option: string; bumpUpDollars: number; bumpUpPercentage: number };
+    ceiling2?: boolean;
+    ceiling2Options?: { option: string; bumpUpDollars: number; bumpUpPercentage: number };
+  };
+  fbaPrices?: number[];
+  prices: number[];
+  offers?: offersRef | undefined;
+  buyBoxPrice?: number;
+  lowestNewPrice: number;
+  buyBoxNew: number;
+  amazonPrice?: number;
+  route: "FBA" | "MF";
+};
+
+export type CapEntry = { name: string; value: number; applied: boolean; reason: string };
+
+function refCap(
+  offers: offersRef,
+  option: string,
+  bumpDollar: number,
+  bumpPct: number,
+  mode: "min" | "max" = "min"
+): number | null {
+  let ref: number | undefined;
+  if (option === "Average of 3 Used Offers" || option.includes("Average")) {
+    if (offers.avgOf3 != null) ref = offers.avgOf3;
+    else if (offers.lowest != null) ref = offers.lowest;
+  } else if (option === "2nd Lowest Used Offer" || option.includes("2nd")) {
+    ref = offers.secondLowest;
+  } else if (option === "3rd Lowest Used Offer" || option.includes("3rd")) {
+    ref = offers.thirdLowest;
+  } else {
+    ref = offers.lowest;
+  }
+  if (ref == null || ref <= 0) return null;
+  const bumpedByDollar = Math.round((ref + bumpDollar) * 100) / 100;
+  const bumpedByPct = Math.round(ref * (1 + bumpPct / 100) * 100) / 100;
+  const bumpLimit = mode === "max" ? Math.max(bumpedByDollar, bumpedByPct) : Math.min(bumpedByDollar, bumpedByPct);
+  return Math.round(bumpLimit * 100) / 100;
+}
+
+export function determineTargetPrice(input: targetPriceInput): number {
+  const { settings, fbaPrices, prices, offers, buyBoxPrice, amazonPrice, lowestNewPrice, buyBoxNew, route } = input;
+
+  const fbaLen = fbaPrices?.length ?? 0;
+  const fbaSlot = settings.fbaSlot != null
+    ? Math.min(settings.fbaSlot, Math.max(0, fbaLen - 1))
+    : Math.max(0, fbaLen - 1);
+  const slot = settings.slot != null
+    ? Math.min(settings.slot, Math.max(0, prices.length - 1))
+    : Math.max(0, prices.length - 1);
+
+  let initialPrice = 0;
+  if(route === "FBA") {
+    initialPrice = fbaPrices?.[fbaSlot] ? fbaPrices[fbaSlot] : prices[slot];
+  } else {
+    initialPrice = prices[slot];
+  }
+
+  let priceAfterBBCompare = initialPrice;
+  if (settings.bbCompare && buyBoxPrice && buyBoxPrice > initialPrice) {
+    priceAfterBBCompare = buyBoxPrice;
+  }
+
+  let amazonCap: number = Infinity;
+  if (amazonPrice != null && amazonPrice > 0 && (settings.amazonOffPercentage ?? 0) > 0) {
+    amazonCap = Math.round(amazonPrice * (1 - (settings.amazonOffPercentage ?? 0) / 100) * 100) / 100;
+  }
+
+  let ceiling1Cap: number = Infinity;
+  if (settings.ceiling1 && settings.ceiling1Options) {
+    if (settings.ceiling1Options.options === "Lowest New Price") {
+      ceiling1Cap = Math.round(lowestNewPrice * (1 - (settings.ceiling1Options.discount ?? 0) / 100) * 100) / 100;
+    } else if (settings.ceiling1Options.options === "New Buy Box") {
+      ceiling1Cap = Math.round(buyBoxNew * (1 - (settings.ceiling1Options.discount ?? 0) / 100) * 100) / 100;
+    }
+  }
+
+  let primeLessCap: number = Infinity;
+  if (settings.primeLess && settings.primeLessOptions) {
+    primeLessCap = refCap(
+      offers ?? {},
+      settings.primeLessOptions.option,
+      settings.primeLessOptions.bumpUpDollars ?? 0,
+      settings.primeLessOptions.bumpUpPercentage ?? 0,
+      "min") ?? Infinity;
+  }
+
+  let ceiling2Cap: number = Infinity;
+  if (settings.ceiling2 && settings.ceiling2Options) {
+    ceiling2Cap = refCap(offers ?? {},
+      settings.ceiling2Options.option,
+      settings.ceiling2Options.bumpUpDollars ?? 0,
+      settings.ceiling2Options.bumpUpPercentage ?? 0,
+      "min") ?? Infinity;
+  }
+
+  const current = Math.min(priceAfterBBCompare, amazonCap, ceiling1Cap, primeLessCap, ceiling2Cap);
+  const targetPrice = Math.max(0, Math.round(current * 100) / 100);
+  return targetPrice;
+}
+
+function selectFBATargetPrice(
+  fbaConfig: any[],
+  salesRank: number,
+  fbaPrices: number[],
+  prices: number[],
+  offers: offersRef | undefined,
+  buyBoxPrice: number,
+  lowestNewPrice: number,
+  buyBoxNew: number,
+  amazonPrice?: number
+): number {
+  const t = findTriggerByRank(fbaConfig, salesRank);
+  if (!t) return 0;
+  return determineTargetPrice({
+    settings: {
+      fbaSlot: t.fbaSlot,
+      slot: t.slot,
+      bbCompare: t.bbCompare,
+      amazonOffPercentage: t.amazonOffPercentage,
+      ceiling1: t.ceiling1,
+      ceiling1Options: t.ceiling1Options,
+      primeLess: t.primeLess,
+      primeLessOptions: t.primeLessOptions,
+      ceiling2: t.ceiling2,
+      ceiling2Options: t.ceiling2Options,
+    },
+    fbaPrices,
+    prices,
+    offers,
+    buyBoxPrice,
+    lowestNewPrice,
+    buyBoxNew,
+    amazonPrice,
+    route: "FBA",
+  });
+}
+
+function selectMFTargetPrice(
+  mfConfig: any[],
+  salesRank: number,
+  prices: number[],
+  buyBoxPrice: number,
+  lowestNewPrice: number,
+  buyBoxNew: number,
+  amazonPrice?: number
+): number {
+  const t = findTriggerByRank(mfConfig, salesRank);
+  if (!t) return 0;
+  return determineTargetPrice({
+    settings: {
+      slot: t.slot,
+      amazonOffPercentage: t.amazonOffPercentage,
+      ceiling1: t.ceiling1,
+      ceiling1Options: t.ceiling1Options,
+    },
+    prices,
+    buyBoxPrice,
+    lowestNewPrice,
+    buyBoxNew,
+    amazonPrice,
+    route: "MF",
+  });
+}
+
+function determineRoute(
+  fbaConfig: any[],
+  mfConfig: any[],
+  salesRank: number,
+  eScore: number,
+  fbaProfit: number,
+  mfProfit: number
+): { fbaAccept: boolean; mfAccept: boolean } {
+  const fbaTrigger = findMatchingTrigger(fbaConfig, salesRank, eScore);
+  const mfTrigger = findMatchingTrigger(mfConfig, salesRank, eScore);
+
+  const fbaAccept =
+    !!fbaTrigger &&
+    !fbaTrigger.alwaysReject &&
+    fbaProfit >= (fbaTrigger.targetProfit ?? 0);
+  const mfAccept =
+    !!mfTrigger &&
+    !mfTrigger.alwaysReject &&
+    mfProfit >= (mfTrigger.targetProfit ?? 0);
+
+  return { fbaAccept, mfAccept };
+}
+
 
 export const createScanHandler = async (req: AuthRequest, res: Response) => {
   try {
@@ -53,7 +303,9 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
     const condition = getProductCondition();
     const itemCondition = condition === "new" ? "New" : "Used";
 
-    const tempResultList: any[] = await Promise.all(items.map((item: any) => spApiService.getItemOffers(item.asin, itemCondition)));
+    const tempResultList: any[] = await Promise.all(items.map((item: any) => 
+      spApiService.getItemOffers(item.asin, itemCondition))
+    );
 
     let item = null;
     let spOffers = null;
@@ -68,11 +320,9 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
 
     const asin = item.asin;
     const attributes = item.attributes || {};
-    const dimensionsList = attributes.item_dimensions ?? item.dimensions;
+    const dimensionsList = item.dimensions;
     const imagesList = Array.isArray(item.images) ? item.images : [];
-    const salesRanksList = Array.isArray(item.salesRanks)
-      ? item.salesRanks
-      : [];
+    const salesRanksList = Array.isArray(item.salesRanks) ? item.salesRanks : [];
 
     const title = attributes.item_name?.[0]?.value;
     const author = attributes.author?.[0]?.value;
@@ -83,16 +333,31 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
       attributes.video_game_platform?.[0]?.value ||
       null;
     const itemType = attributes.item_type_keyword?.[0]?.value;
-    const weight = attributes.item_weight?.[0] ?? (dimensionsList?.[0] as { package?: { weight?: unknown } } | undefined)?.package?.weight;
-    const dimensions = {
-      length: dimensionsList?.[0]?.length,
-      width: dimensionsList?.[0]?.width,
-      height: dimensionsList?.[0]?.height,
-    };
+
+    let weight = 0;
+    let dimensions = null;
+    const itemData = dimensionsList?.[0]?.item || 0;
+    const itemWeight = Math.round(itemData.weight * 100) / 100;
+    const packageData = dimensionsList?.[0]?.package || 0;
+    const packageWeight = Math.round(packageData.weight * 100) / 100;
+    if(itemWeight >= 0.01) {
+      weight = itemWeight;
+      dimensions = {
+        length: itemData.length,
+        width: itemData.width,
+        height: itemData.height,
+      };
+    } else if (packageWeight >= 0.01) {
+      weight = packageWeight;
+      dimensions = {
+        length: packageData.length,
+        width: packageData.width,
+        height: packageData.height,
+      };
+    }
+
     const displayGroupRank = salesRanksList?.[0]?.displayGroupRanks?.[0];
-    const category = formatCategory(
-      displayGroupRank?.websiteDisplayGroup ?? itemType
-    );
+    const category = formatCategory(displayGroupRank?.websiteDisplayGroup ?? itemType);
     const salesRank = displayGroupRank?.rank || 0;
     const image = imagesList?.[0]?.images?.[0]?.link;
     const listPrice = {
@@ -102,18 +367,18 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
 
     const triggerCategory = getTriggerCategory(category);
 
-    const userTriggers = triggerCategory
-      ? await findTriggersByCondition({
-        user: { id: userId },
-        category: triggerCategory,
-        enabled: true,
-      })
-      : [];
+    const userTriggers = await findTriggersByCondition({
+      user: { id: userId },
+      category: triggerCategory as string,
+      enabled: true,
+    });
 
     const fbaTrigger = userTriggers.find((t) => t.module === ModuleEnum.FBA);
     const mfTrigger = userTriggers.find((t) => t.module === ModuleEnum.MF);
     const fbaConfig = fbaTrigger?.config || [];
     const mfConfig = mfTrigger?.config || [];
+
+    const eScore = calculateEScore(fbaConfig, mfConfig, salesRank);
 
     const summary = spOffers?.payload?.Summary;
     const lowestPricesList = summary?.LowestPrices || [];
@@ -123,45 +388,63 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
 
     const buyBoxNewItem = buyBoxPricesList.find((item: any) => item?.condition.toLowerCase() === "new")
     const buyBoxNew = buyBoxNewItem?.LandedPrice.Amount || 0;
+
     const buyBoxUsedItem = buyBoxPricesList.find((item: any) => item?.condition.toLowerCase() === "used")
     const buyBoxUsed = buyBoxUsedItem?.LandedPrice?.Amount || 0;
+
     const lowestNewItem = lowestPricesList.filter((item: any) =>
       item?.condition.toLowerCase() === "new"
     ).sort((a: any, b: any) => a.LandedPrice.Amount - b.LandedPrice.Amount)[0];
+
     const lowestNew = lowestNewItem?.LandedPrice?.Amount || 0;
+
     const lowestUsedItem = lowestPricesList.filter((item: any) =>
       item?.condition.toLowerCase() === "used"
     ).sort((a: any, b: any) => a.LandedPrice.Amount - b.LandedPrice.Amount)[0];
+
     const lowestUsed = lowestUsedItem?.LandedPrice?.Amount || 0;
+
     const lowestCollectibleItem = lowestPricesList.filter((item: any) =>
       item?.condition.toLowerCase() === "collectible"
     ).sort((a: any, b: any) => a.LandedPrice.Amount - b.LandedPrice.Amount)[0];
+
     const lowestCollectible = lowestCollectibleItem?.LandedPrice?.Amount || 0;
+
     const mfUsedItem = numberOfOffersList.find((item: any) =>
       item?.condition.toLowerCase() === "used" &&
       item?.fulfillmentChannel.toLowerCase() === "merchant"
     );
+
     const mfUsed = mfUsedItem?.OfferCount || 0;
+
     const mfNewItem = numberOfOffersList.find((item: any) =>
       item?.condition.toLowerCase() === "new" &&
       item?.fulfillmentChannel.toLowerCase() === "merchant"
     );
+
     const mfNew = mfNewItem?.OfferCount || 0;
+
     const collectibleItem = numberOfOffersList.find((item: any) =>
       item?.condition.toLowerCase() === "collectible" &&
       item?.fulfillmentChannel.toLowerCase() === "merchant"
     );
+
     const collectible = collectibleItem?.OfferCount || 0;
+
     const fbaUsedItem = numberOfOffersList.find((item: any) =>
       item?.condition.toLowerCase() === "used" &&
       item?.fulfillmentChannel.toLowerCase() === "amazon"
     );
+
     const fbaUsed = fbaUsedItem?.OfferCount || 0;
+
     const fbaNewItem = numberOfOffersList.find((item: any) =>
       item?.condition.toLowerCase() === "new" &&
       item?.fulfillmentChannel.toLowerCase() === "amazon"
     );
+
     const fbaNew = fbaNewItem?.OfferCount || 0;
+
     const count = {
       mfUsed,
       mfNew,
@@ -181,97 +464,27 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
       pricesList = [lowestCollectible];
       fbaPricesList = [lowestCollectible];
     } else {
-      const fbaOffersList = offersList.filter(
-        (item: any) => item?.IsFulfilledByAmazon
-      );
-      pricesList = offersList.map(
-        (item: any) =>
-          Math.round(
-            (Number(item?.Shipping?.Amount) +
-              Number(item?.ListingPrice?.Amount)) *
-            100
-          ) / 100
-      );
-      fbaPricesList = fbaOffersList.map(
-        (item: any) =>
-          Math.round(
-            (Number(item?.Shipping?.Amount) +
-              Number(item?.ListingPrice?.Amount)) *
-            100
-          ) / 100
+      pricesList = offersList.map((item: any) =>
+        Math.round((Number(item?.Shipping?.Amount) + Number(item?.ListingPrice?.Amount)) * 100) / 100
       );
 
-      const tempList: any[] = [];
-      pricesList.forEach((price: number) => {
-        const index = tempList.findIndex((item: any) => item.price === price);
-        if (index > -1) {
-          tempList[index].count++;
-        } else {
-          tempList.push({
-            count: 1,
-            price: price,
-          });
-        }
-      });
-
-      const usedOffersRaw =
-        condition === "used"
-          ? offersList
-          : offersList.filter((o: any) =>
-            String(o?.Condition?.ConditionType ?? o?.condition ?? "").toLowerCase().includes("used")
-          );
-      const usedOffersData = usedOffersRaw
-        .map((o: any) =>
-          Math.round(
-            (Number(o?.Shipping?.Amount ?? 0) + Number(o?.ListingPrice?.Amount ?? 0)) * 100
-          ) / 100
-        )
-        .sort((a: number, b: number) => a - b);
-      const usedOffers =
-        usedOffersData.length >= 1
-          ? {
-            lowest: usedOffersData[0],
-            secondLowest: usedOffersData[1],
-            thirdLowest: usedOffersData[2],
-            avgOf3:
-              usedOffersData.length >= 3
-                ? Math.round(
-                  ((usedOffersData[0] + usedOffersData[1] + usedOffersData[2]) / 3) * 100
-                ) / 100
-                : undefined,
-          }
-          : undefined;
-
-      const sortedFba = [...fbaPricesList].sort((a, b) => a - b);
-      const sortedAll = [...pricesList].sort((a, b) => a - b);
-      const initialPrice = sortedFba.length > 0 ? sortedFba[0] : (sortedAll[0] ?? 0);
-
-      fbaTargetPrice = selectTargetPrice(
-        fbaConfig,
-        mfConfig,
-        salesRank,
-        initialPrice,
-        buyBoxNew,
-        lowestNew,
-        buyBoxUsed,
-        usedOffers,
-        "FBA",
-        fbaTrigger?.missingOptions ?? undefined,
-        fbaTrigger?.disabledMissing ?? true
+      const fbaOffersList = offersList.filter((item: any) =>
+        item?.IsFulfilledByAmazon
       );
-      mfTargetPrice = 0;
-      const sortedTempList = [...tempList].sort(
-        (a, b) => b.count - a.count || a.price - b.price
+
+      fbaPricesList = fbaOffersList.map((item: any) =>
+        Math.round((Number(item?.Shipping?.Amount) + Number(item?.ListingPrice?.Amount)) * 100) / 100
       );
-      if (sortedTempList.length >= 1) {
-        mfTargetPrice = sortedTempList[0].price;
-      }
+
+      const amazonPrice = fbaPricesList.find((item: any) => item?.IsEligibleForSuperSaverShipping);
+
+      fbaTargetPrice = selectFBATargetPrice(fbaConfig, salesRank, fbaPricesList, pricesList, offersList, condition === "new" ? buyBoxNew : buyBoxUsed, lowestNew, buyBoxNew, amazonPrice);
+      mfTargetPrice = selectMFTargetPrice(mfConfig, salesRank, pricesList, condition === "new" ? buyBoxNew : buyBoxUsed, lowestNew, buyBoxNew, amazonPrice);
+
     }
 
     let fbaProfit = 0, mfProfit = 0;
     const mfShippingCost = 3.89;
-
-    const eScore = calculateEScore(fbaConfig, mfConfig, salesRank);
 
     const { fba: fbaFeeRes, mf: mfFeeRes } = await spApiService.getMyFeesEstimates(
       asin,

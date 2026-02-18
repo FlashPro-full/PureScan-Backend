@@ -31,6 +31,7 @@ interface marketplaceResponse {
 const getIdentifiersTypeFromBarcode = (barcode: string): string => {
   const s = String(barcode || '').trim();
   const normalized = s.replace(/[- ]/g, '');
+  if (/^[A-Za-z0-9]{10}$/.test(normalized) && normalized.startsWith('B0')) return 'ASIN';
   const digitsOnly = s.replace(/\D/g, '');
   const len = digitsOnly.length;
   if (/^\d{9}[\dXx]$/.test(normalized)) return 'ISBN';
