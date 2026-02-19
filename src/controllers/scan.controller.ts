@@ -29,16 +29,6 @@ function getTriggerCategory(displayCategory: string): string | null {
   return null;
 }
 
-function findMatchingTrigger(config: any[], salesRank: number, eScore: number): any | null {
-  if (!config?.length) return null;
-  for (const t of config) {
-    const rankMatch = salesRank >= (t.minSalesrank ?? 0) && salesRank <= (t.maxSalesrank ?? Infinity);
-    const eScoreMatch = eScore >= (t.minEScore ?? 0) && eScore <= (t.maxEScore ?? 999);
-    if (rankMatch && eScoreMatch) return t;
-  }
-  return null;
-}
-
 function findTriggerByRank(config: any[], salesRank: number): any | null {
   if (!config?.length) return null;
   for (const t of config) {
@@ -275,13 +265,12 @@ function determineRoute(
   fbaConfig: any[],
   mfConfig: any[],
   salesRank: number,
-  eScore: number,
   fbaProfit: number,
   mfProfit: number
 ): { fbaAccept: boolean; mfAccept: boolean } {
-  const fbaTrigger = findMatchingTrigger(fbaConfig, salesRank, eScore);
-  const mfTrigger = findMatchingTrigger(mfConfig, salesRank, eScore);
-
+  const fbaTrigger = findTriggerByRank(fbaConfig, salesRank);
+  const mfTrigger = findTriggerByRank(mfConfig, salesRank);
+  
   const fbaAccept =
     !!fbaTrigger &&
     !fbaTrigger.alwaysReject &&
@@ -511,7 +500,10 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
     }
 
     let fbaProfit = 0, mfProfit = 0;
-    const mfShippingCost = 3.89;
+    let mfShippingCost = 4.5;
+    if (mfTrigger?.mfExtraValue) {
+      mfShippingCost = mfTrigger.mfExtraValue;
+    }
 
     const { fba: fbaFeeRes, mf: mfFeeRes } = await spApiService.getMyFeesEstimates(
       asin,
@@ -530,7 +522,6 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
       fbaConfig,
       mfConfig,
       salesRank,
-      eScore,
       fbaProfit,
       mfProfit
     );
