@@ -121,18 +121,17 @@ export function determineTargetPrice(input: targetPriceInput): number {
   const { settings, fbaPrices, prices, offers, buyBoxPrice, amazonPrice, lowestNewPrice, buyBoxNew, route } = input;
 
   const fbaLen = fbaPrices?.length ?? 0;
+  const pricesLen = prices.length ?? 0;
   const fbaSlot = settings.fbaSlot != null
-    ? Math.min(settings.fbaSlot, Math.max(0, fbaLen - 1))
-    : Math.max(0, fbaLen - 1);
+    ? Math.min(settings.fbaSlot, fbaLen) - 1
+    : Math.max(0, fbaLen) - 1;
   const slot = settings.slot != null
-    ? Math.min(settings.slot, Math.max(0, prices.length - 1))
-    : Math.max(0, prices.length - 1);
+    ? Math.min(settings.slot, pricesLen) - 1
+    : Math.max(0, pricesLen) - 1;
 
   let initialPrice = 0;
   if (route === "FBA") {
     initialPrice = fbaPrices?.[fbaSlot] ? fbaPrices[fbaSlot] : prices[slot];
-
-    console.log(initialPrice, buyBoxPrice);
 
     let priceAfterBBCompare = initialPrice;
     if (settings.bbCompare && buyBoxPrice && buyBoxPrice > initialPrice) {
@@ -144,8 +143,6 @@ export function determineTargetPrice(input: targetPriceInput): number {
       amazonCap = Math.round(amazonPrice * (1 - (settings.amazonOffPercentage ?? 0) / 100) * 100) / 100;
     }
 
-    console.log(amazonCap);
-
     let ceiling1Cap: number = Infinity;
     if (settings.ceiling1 && settings.ceiling1Options) {
       if (settings.ceiling1Options.option === "Lowest New Price" && lowestNewPrice !== undefined && lowestNewPrice !== null && lowestNewPrice > 0) {
@@ -154,8 +151,6 @@ export function determineTargetPrice(input: targetPriceInput): number {
         ceiling1Cap = Math.round(buyBoxNew * (1 - (settings.ceiling1Options.discount ?? 0) / 100) * 100) / 100;
       }
     }
-
-    console.log(ceiling1Cap);
 
     let primeLessCap: number = Infinity;
     if (settings.primeLess && settings.primeLessOptions) {
@@ -167,8 +162,6 @@ export function determineTargetPrice(input: targetPriceInput): number {
         "min") ?? Infinity;
     }
 
-    console.log(primeLessCap);
-
     let ceiling2Cap: number = Infinity;
     if (settings.ceiling2 && settings.ceiling2Options) {
       ceiling2Cap = refCap(offers ?? {},
@@ -177,8 +170,6 @@ export function determineTargetPrice(input: targetPriceInput): number {
         settings.ceiling2Options.bumpUpPercentage ?? 0,
         "min") ?? Infinity;
     }
-
-    console.log(ceiling2Cap);
 
     const current = Math.min(priceAfterBBCompare, amazonCap, ceiling1Cap, primeLessCap, ceiling2Cap);
     const targetPrice = Math.max(0, Math.round(current * 100) / 100);
@@ -487,6 +478,8 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
         Math.round((Number(item?.Shipping?.Amount) + Number(item?.ListingPrice?.Amount)) * 100) / 100
       );
 
+      pricesList.sort((a: number, b: number) => a - b);
+
       const fbaOffersList = offersList.filter((item: any) =>
         item?.IsFulfilledByAmazon
       );
@@ -494,6 +487,8 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
       fbaPricesList = fbaOffersList.map((item: any) =>
         Math.round((Number(item?.Shipping?.Amount) + Number(item?.ListingPrice?.Amount)) * 100) / 100
       );
+
+      fbaPricesList.sort((a: number, b: number) => a - b);
 
       const amazonPrice = fbaPricesList.find((item: any) => item?.IsEligibleForSuperSaverShipping);
 
