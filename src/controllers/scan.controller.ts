@@ -506,7 +506,7 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
 
     let fbaProfit = 0, mfProfit = 0;
     let mfShippingCost = 4.5;
-    if (mfTrigger?.mfExtraValue) {
+    if (mfTrigger?.mfExtraValue !== undefined && mfTrigger?.mfExtraValue !== null && mfTrigger?.mfExtraValue > 0) {
       mfShippingCost = mfTrigger.mfExtraValue;
     }
 
