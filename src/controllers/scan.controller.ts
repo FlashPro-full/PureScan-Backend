@@ -98,19 +98,19 @@ function refCap(
   bumpDollar: number,
   bumpPct: number,
   mode: "min" | "max" = "min"
-): number | null {
-  let ref: number | undefined;
+): number {
+  let ref: number | null | undefined = null;
   if (option === "Average of 3 Used Offers" || option.includes("Average")) {
-    if (offers.avgOf3 != null) ref = offers.avgOf3;
-    else if (offers.lowest != null) ref = offers.lowest;
+    if (offers.avgOf3 !== undefined || offers.avgOf3 !== null) ref = offers.avgOf3;
+    else if (offers.lowest !== undefined || offers.lowest !== null) ref = offers.lowest;
   } else if (option === "2nd Lowest Used Offer" || option.includes("2nd")) {
-    ref = offers.secondLowest;
+    if (offers.secondLowest !== undefined || offers.secondLowest !== null) ref = offers.secondLowest;
   } else if (option === "3rd Lowest Used Offer" || option.includes("3rd")) {
-    ref = offers.thirdLowest;
+    if (offers.thirdLowest !== undefined || offers.thirdLowest !== null) ref = offers.thirdLowest;
   } else {
-    ref = offers.lowest;
+    if (offers.lowest !== undefined || offers.lowest !== null) ref = offers.lowest;
   }
-  if (ref == null || ref <= 0) return null;
+  if (ref === null || ref === undefined || ref <= 0) return Infinity;
   const bumpedByDollar = Math.round((ref + bumpDollar) * 100) / 100;
   const bumpedByPct = Math.round(ref * (1 + bumpPct / 100) * 100) / 100;
   const bumpLimit = mode === "max" ? Math.max(bumpedByDollar, bumpedByPct) : Math.min(bumpedByDollar, bumpedByPct);
@@ -132,24 +132,30 @@ export function determineTargetPrice(input: targetPriceInput): number {
   if (route === "FBA") {
     initialPrice = fbaPrices?.[fbaSlot] ? fbaPrices[fbaSlot] : prices[slot];
 
+    console.log(initialPrice, buyBoxPrice);
+
     let priceAfterBBCompare = initialPrice;
     if (settings.bbCompare && buyBoxPrice && buyBoxPrice > initialPrice) {
       priceAfterBBCompare = buyBoxPrice;
     }
 
     let amazonCap: number = Infinity;
-    if (amazonPrice != null && amazonPrice > 0 && (settings.amazonOffPercentage ?? 0) > 0) {
+    if (amazonPrice !== undefined && amazonPrice !== null && amazonPrice > 0 && (settings.amazonOffPercentage !== undefined || settings.amazonOffPercentage !== null)) {
       amazonCap = Math.round(amazonPrice * (1 - (settings.amazonOffPercentage ?? 0) / 100) * 100) / 100;
     }
 
+    console.log(amazonCap);
+
     let ceiling1Cap: number = Infinity;
     if (settings.ceiling1 && settings.ceiling1Options) {
-      if (settings.ceiling1Options.option === "Lowest New Price") {
+      if (settings.ceiling1Options.option === "Lowest New Price" && lowestNewPrice !== undefined && lowestNewPrice !== null && lowestNewPrice > 0) {
         ceiling1Cap = Math.round(lowestNewPrice * (1 - (settings.ceiling1Options.discount ?? 0) / 100) * 100) / 100;
-      } else if (settings.ceiling1Options.option === "New Buy Box") {
+      } else if (settings.ceiling1Options.option === "New Buy Box" && buyBoxNew !== undefined && buyBoxNew !== null && buyBoxNew > 0) {
         ceiling1Cap = Math.round(buyBoxNew * (1 - (settings.ceiling1Options.discount ?? 0) / 100) * 100) / 100;
       }
     }
+
+    console.log(ceiling1Cap);
 
     let primeLessCap: number = Infinity;
     if (settings.primeLess && settings.primeLessOptions) {
@@ -161,6 +167,8 @@ export function determineTargetPrice(input: targetPriceInput): number {
         "min") ?? Infinity;
     }
 
+    console.log(primeLessCap);
+
     let ceiling2Cap: number = Infinity;
     if (settings.ceiling2 && settings.ceiling2Options) {
       ceiling2Cap = refCap(offers ?? {},
@@ -170,6 +178,8 @@ export function determineTargetPrice(input: targetPriceInput): number {
         "min") ?? Infinity;
     }
 
+    console.log(ceiling2Cap);
+
     const current = Math.min(priceAfterBBCompare, amazonCap, ceiling1Cap, primeLessCap, ceiling2Cap);
     const targetPrice = Math.max(0, Math.round(current * 100) / 100);
     return targetPrice;
@@ -177,15 +187,15 @@ export function determineTargetPrice(input: targetPriceInput): number {
     initialPrice = prices[slot];
 
     let amazonCap: number = Infinity;
-    if (amazonPrice != null && amazonPrice > 0 && (settings.amazonOffPercentage ?? 0) > 0) {
+    if (amazonPrice !== undefined && amazonPrice !== null && amazonPrice > 0 && (settings.amazonOffPercentage !== undefined || settings.amazonOffPercentage !== null)) {
       amazonCap = Math.round(amazonPrice * (1 - (settings.amazonOffPercentage ?? 0) / 100) * 100) / 100;
     }
 
     let ceiling1Cap: number = Infinity;
     if (settings.ceiling1 && settings.ceiling1Options) {
-      if (settings.ceiling1Options.option === "Lowest New Price") {
+      if (settings.ceiling1Options.option === "Lowest New Price" && lowestNewPrice !== undefined && lowestNewPrice !== null && lowestNewPrice > 0) {
         ceiling1Cap = Math.round(lowestNewPrice * (1 - (settings.ceiling1Options.discount ?? 0) / 100) * 100) / 100;
-      } else if (settings.ceiling1Options.option === "New Buy Box") {
+      } else if (settings.ceiling1Options.option === "New Buy Box" && buyBoxNew !== undefined && buyBoxNew !== null && buyBoxNew > 0) {
         ceiling1Cap = Math.round(buyBoxNew * (1 - (settings.ceiling1Options.discount ?? 0) / 100) * 100) / 100;
       }
     }
@@ -270,7 +280,7 @@ function determineRoute(
 ): { fbaAccept: boolean; mfAccept: boolean } {
   const fbaTrigger = findTriggerByRank(fbaConfig, salesRank);
   const mfTrigger = findTriggerByRank(mfConfig, salesRank);
-  
+
   const fbaAccept =
     !!fbaTrigger &&
     !fbaTrigger.alwaysReject &&
