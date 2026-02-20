@@ -88,6 +88,8 @@ export type targetPriceInput = {
   buyBoxNew: number;
   amazonPrice?: number;
   route: "FBA" | "MF";
+  offersCount?: number;
+  fbaOffersCount?: number;
 };
 
 export type CapEntry = { name: string; value: number; applied: boolean; reason: string };
@@ -101,14 +103,13 @@ function refCap(
 ): number {
   let ref: number | null | undefined = null;
   if (option === "Average of 3 Used Offers" || option.includes("Average")) {
-    if (offers.avgOf3 !== undefined || offers.avgOf3 !== null) ref = offers.avgOf3;
-    else if (offers.lowest !== undefined || offers.lowest !== null) ref = offers.lowest;
+    ref = offers.avgOf3;
   } else if (option === "2nd Lowest Used Offer" || option.includes("2nd")) {
-    if (offers.secondLowest !== undefined || offers.secondLowest !== null) ref = offers.secondLowest;
+    ref = offers.secondLowest;
   } else if (option === "3rd Lowest Used Offer" || option.includes("3rd")) {
-    if (offers.thirdLowest !== undefined || offers.thirdLowest !== null) ref = offers.thirdLowest;
+    ref = offers.thirdLowest;
   } else {
-    if (offers.lowest !== undefined || offers.lowest !== null) ref = offers.lowest;
+    ref = offers.lowest;
   }
   if (ref === null || ref === undefined || ref <= 0) return Infinity;
   const bumpedByDollar = Math.round((ref + bumpDollar) * 100) / 100;
@@ -118,28 +119,34 @@ function refCap(
 }
 
 export function determineTargetPrice(input: targetPriceInput): number {
-  const { settings, fbaPrices, prices, offers, buyBoxPrice, amazonPrice, lowestNewPrice, buyBoxNew, route } = input;
+  const { settings, fbaPrices, prices, offers, buyBoxPrice, amazonPrice, lowestNewPrice, buyBoxNew, route, fbaOffersCount, offersCount } = input;
 
   const fbaLen = fbaPrices?.length ?? 0;
   const pricesLen = prices.length ?? 0;
-  const fbaSlot = settings.fbaSlot != null
-    ? Math.min(settings.fbaSlot, fbaLen) - 1
-    : Math.max(0, fbaLen) - 1;
-  const slot = settings.slot != null
-    ? Math.min(settings.slot, pricesLen) - 1
-    : Math.max(0, pricesLen) - 1;
 
   let initialPrice = 0;
   if (route === "FBA") {
-    initialPrice = fbaPrices?.[fbaSlot] ? fbaPrices[fbaSlot] : prices[slot];
+    if (fbaOffersCount !== undefined && fbaOffersCount !== null) {
+      if (settings.fbaSlot !== undefined && settings.fbaSlot !== null && settings.fbaSlot > 0 && fbaOffersCount >= settings.fbaSlot) {
+        const fbaSlot = settings.fbaSlot > fbaLen ? fbaLen - 1 : settings.fbaSlot - 1;
+        initialPrice = fbaPrices?.[fbaSlot] ?? 0;
+      }
+    }
+
+    if (initialPrice === 0 && offersCount !== undefined && offersCount !== null) {
+      if (settings.slot !== undefined && settings.slot !== null && settings.slot > 0 && offersCount >= settings.slot) {
+        const slot = settings.slot > pricesLen ? pricesLen - 1 : settings.slot - 1;
+        initialPrice = prices?.[slot] ?? 0;
+      }
+    }
 
     let priceAfterBBCompare = initialPrice;
-    if (settings.bbCompare && buyBoxPrice && buyBoxPrice > initialPrice) {
+    if (settings.bbCompare && buyBoxPrice !== undefined && buyBoxPrice !== null && buyBoxPrice > 0 && buyBoxPrice < initialPrice) {
       priceAfterBBCompare = buyBoxPrice;
     }
 
     let amazonCap: number = Infinity;
-    if (amazonPrice !== undefined && amazonPrice !== null && amazonPrice > 0 && (settings.amazonOffPercentage !== undefined || settings.amazonOffPercentage !== null)) {
+    if (amazonPrice !== undefined && amazonPrice !== null && amazonPrice > 0 && settings.amazonOffPercentage !== undefined && settings.amazonOffPercentage !== null) {
       amazonCap = Math.round(amazonPrice * (1 - (settings.amazonOffPercentage ?? 0) / 100) * 100) / 100;
     }
 
@@ -175,7 +182,12 @@ export function determineTargetPrice(input: targetPriceInput): number {
     const targetPrice = Math.max(0, Math.round(current * 100) / 100);
     return targetPrice;
   } else {
-    initialPrice = prices[slot];
+    if (offersCount !== undefined && offersCount !== null) {
+      if (settings.slot !== undefined && settings.slot !== null && settings.slot > 0 && offersCount >= settings.slot) {
+        const slot = settings.slot > pricesLen ? pricesLen - 1 : settings.slot - 1;
+        initialPrice = prices?.[slot] ?? 0;
+      }
+    }
 
     let amazonCap: number = Infinity;
     if (amazonPrice !== undefined && amazonPrice !== null && amazonPrice > 0 && (settings.amazonOffPercentage !== undefined || settings.amazonOffPercentage !== null)) {
@@ -207,7 +219,9 @@ function selectFBATargetPrice(
   buyBoxPrice: number,
   lowestNewPrice: number,
   buyBoxNew: number,
-  amazonPrice?: number
+  amazonPrice?: number,
+  fbaOffersCount?: number,
+  offersCount?: number
 ): number {
   const t = findTriggerByRank(fbaConfig, salesRank);
   if (!t) return 0;
@@ -232,6 +246,8 @@ function selectFBATargetPrice(
     buyBoxNew,
     amazonPrice,
     route: "FBA",
+    fbaOffersCount,
+    offersCount
   });
 }
 
@@ -242,7 +258,8 @@ function selectMFTargetPrice(
   buyBoxPrice: number,
   lowestNewPrice: number,
   buyBoxNew: number,
-  amazonPrice?: number
+  amazonPrice?: number,
+  offersCount?: number,
 ): number {
   const t = findTriggerByRank(mfConfig, salesRank);
   if (!t) return 0;
@@ -259,6 +276,7 @@ function selectMFTargetPrice(
     buyBoxNew,
     amazonPrice,
     route: "MF",
+    offersCount
   });
 }
 
@@ -343,28 +361,21 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
       null;
     const itemType = attributes.item_type_keyword?.[0]?.value;
 
-    let weight = null;
-    let dimensions = null;
     const itemData = dimensionsList?.[0]?.item || 0;
     const itemWeight = Math.round(itemData?.weight?.value * 100) / 100;
     const packageData = dimensionsList?.[0]?.package || 0;
     const packageWeight = Math.round(packageData?.weight?.value * 100) / 100;
-    if (itemWeight >= 0.01) {
-      weight = {
+
+    const weight = {
+      item: {
         unit: itemData?.weight?.unit,
         value: itemWeight
-      };
-    } else {
-      weight = {
+      },
+      package: {
         unit: packageData?.weight?.unit,
         value: packageWeight
-      };
-      dimensions = {
-        length: packageData.length,
-        width: packageData.width,
-        height: packageData.height,
-      };
-    }
+      }
+    };
 
     const displayGroupRank = salesRanksList?.[0]?.displayGroupRanks?.[0];
     const category = formatCategory(displayGroupRank?.websiteDisplayGroup ?? itemType);
@@ -408,11 +419,21 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
 
     const lowestNew = lowestNewItem?.LandedPrice?.Amount || 0;
 
+    const lowestFBANewItem = lowestPricesList.find((item: any) => {
+      return item?.condition.toLowerCase() === "new" && item?.fulfillmentChannel.toLowerCase() === "amazon";
+    })
+    const lowestFBANew = lowestFBANewItem?.LandedPrice?.Amount || 0;
+
     const lowestUsedItem = lowestPricesList.filter((item: any) =>
       item?.condition.toLowerCase() === "used"
     ).sort((a: any, b: any) => a.LandedPrice.Amount - b.LandedPrice.Amount)[0];
 
     const lowestUsed = lowestUsedItem?.LandedPrice?.Amount || 0;
+
+    const lowestFBAUsedItem = lowestPricesList.find((item: any) => {
+      return item?.condition.toLowerCase() === "used" && item?.fulfillmentChannel.toLowerCase() === "amazon";
+    })
+    const lowestFBAUsed = lowestFBAUsedItem?.LandedPrice?.Amount || 0;
 
     const lowestCollectibleItem = lowestPricesList.filter((item: any) =>
       item?.condition.toLowerCase() === "collectible"
@@ -492,15 +513,29 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
 
       const amazonPrice = fbaPricesList.find((item: any) => item?.IsEligibleForSuperSaverShipping);
 
+      const lowest = pricesList.length >= 1 ? pricesList[0] : 0;
+      const secondLowest = pricesList.length >= 2 ? pricesList[1] : 0;
+      const thirdLowest = pricesList.length >= 3 ? pricesList[2] : 0;
+      const avgOf3 = pricesList.length >= 3 ? Math.round((lowest + secondLowest + thirdLowest) / 3 * 100) / 100 : 0;
+
       const lowestOffers = {
-        avgOf3: Math.round((pricesList[0] + pricesList[1] + pricesList[2]) / 3 * 100) / 100,
-        lowest: pricesList[0],
-        secondLowest: pricesList[1],
-        thirdLowest: pricesList[2]
+        lowest,
+        secondLowest,
+        thirdLowest,
+        avgOf3
       }
 
-      fbaTargetPrice = selectFBATargetPrice(fbaConfig, salesRank, fbaPricesList, pricesList, lowestOffers, condition === "new" ? buyBoxNew : buyBoxUsed, lowestNew, buyBoxNew, amazonPrice);
-      mfTargetPrice = selectMFTargetPrice(mfConfig, salesRank, pricesList, condition === "new" ? buyBoxNew : buyBoxUsed, lowestNew, buyBoxNew, amazonPrice);
+      const offersCount = condition === "new" ? fbaNew + mfNew : fbaUsed + mfUsed + collectible;
+      const fbaOffersCount = condition === "new" ? fbaNew : fbaUsed;
+
+      if (fbaOffersCount > 0 && fbaPricesList.length === 0) {
+        fbaPricesList = condition === "new" ? [lowestFBANew] : [lowestFBAUsed];
+      }
+
+      const buyBoxPrice = condition === "new" ? buyBoxNew : buyBoxUsed;
+
+      fbaTargetPrice = selectFBATargetPrice(fbaConfig, salesRank, fbaPricesList, pricesList, lowestOffers, buyBoxPrice, lowestNew, buyBoxNew, amazonPrice, fbaOffersCount, offersCount);
+      mfTargetPrice = selectMFTargetPrice(mfConfig, salesRank, pricesList, buyBoxPrice, lowestNew, buyBoxNew, amazonPrice, offersCount);
 
     }
 
@@ -557,7 +592,6 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
         itemType,
         category,
         weight,
-        dimensions,
         image,
         listPrice
       },
