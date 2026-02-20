@@ -3,10 +3,10 @@ import { Preference } from "../entities/preference.entity";
 
 const preferenceRepo = AppDataSource.getRepository(Preference);
 
-export const savePreference = async (preference: Partial<Preference>) => {
+export const savePreference = async (userId: number) => {
     let result = null;
 
-    result = await preferenceRepo.save(preference);
+    result = await preferenceRepo.save({ user: { id: userId } });
 
     return result;
 }

@@ -11,6 +11,7 @@ import {
   sendPasswordResetEmail,
   isSMTPConfigured,
 } from "../third-party/email.service";
+import { savePreference } from "../services/preference.service";
 
 const resetCodes = new Map<string, { code: string; expiresAt: number }>();
 
@@ -56,6 +57,7 @@ export const register = async (req: Request, res: Response) => {
 
     const savedUser = await saveUser(user);
     await createSubscription(savedUser.id);
+    await savePreference(savedUser.id);
 
     res.status(200).json({
       result: true,

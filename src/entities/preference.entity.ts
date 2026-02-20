@@ -3,8 +3,6 @@ import Model from './model.entity';
 
 import { User } from './user.entity';
 
-import { Sound } from './sound.entity';
-
 @Entity('preferences')
 export class Preference extends Model {
 
@@ -12,13 +10,13 @@ export class Preference extends Model {
     @JoinColumn({ name: 'userId' })
     user: User;
 
-    @Column({ type: 'varchar', length: 255, nullable: true })
+    @Column({ type: 'varchar', length: 255, default: 'chime' })
     fbaSound: string;
 
-    @Column({ type: 'varchar', length: 255, nullable: true })
+    @Column({ type: 'varchar', length: 255, default: 'ding' })
     mfSound: string;
 
-    @Column({ type: 'varchar', length: 255, nullable: true })
+    @Column({ type: 'varchar', length: 255, default: 'error_buzz' })
     rejectSound: string;
 
 }
