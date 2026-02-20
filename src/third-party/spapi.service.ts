@@ -51,6 +51,16 @@ const getIdentifiersTypeFromBarcode = (barcode: string): string => {
 export const getIdTypeFromBarcode = (barcode: string): string =>
   getIdentifiersTypeFromBarcode(barcode).toUpperCase();
 
+
+export const CATALOG_CLASSIFICATION_IDS_US = {
+  Books: '283155',
+  Music: '5174',
+  Video: '130',
+  VideoGames: '468642',
+} as const;
+
+export type CatalogCategory = keyof typeof CATALOG_CLASSIFICATION_IDS_US;
+
 export class SPApiService {
   private client: AxiosInstance;
   private accessToken: string | null = null;
@@ -148,6 +158,41 @@ export class SPApiService {
       if (error.response?.status === 404) {
         return null;
       }
+      throw error;
+    }
+  }
+
+  async searchCatalogByKeywords(
+    keywords: string,
+    marketplaceId: string = 'ATVPDKIKX0DER',
+    options: {
+      includedData?: string;
+      pageSize?: number;
+      pageToken?: string;
+      locale?: string;
+      keywordsLocale?: string;
+      brandNames?: string[];
+      classificationIds?: string[];
+    } = {}
+  ): Promise<any> {
+    try {
+      const params: Record<string, string | number> = {
+        marketplaceIds: marketplaceId,
+        keywords: keywords,
+        includedData: options.includedData ?? 'summaries,attributes,images,salesRanks,productTypes,dimensions',
+        pageSize: options.pageSize ?? 10,
+      };
+      if (options.pageToken) params.pageToken = options.pageToken;
+      if (options.locale) params.locale = options.locale;
+      if (options.keywordsLocale) params.keywordsLocale = options.keywordsLocale;
+      if (options.brandNames?.length) params.brandNames = options.brandNames.join(',');
+      if (options.classificationIds?.length) params.classificationIds = options.classificationIds.join(',') ?? "283155, 5174, 130, 468642";
+      const response = await this.client.get('/catalog/2022-04-01/items', {
+        params,
+      });
+      return response.data;
+    } catch (error: any) {
+      if (error.response?.status === 404) return null;
       throw error;
     }
   }

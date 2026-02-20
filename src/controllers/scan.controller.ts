@@ -1,4 +1,4 @@
-import { Response } from "express";
+import { Request, Response } from "express";
 import { AuthRequest } from "../middleware/auth.middleware";
 import { saveScan, findScanListByUserId, deleteScanById, findScanListPaginationByUserId } from "../services/scan.service";
 import { findTriggersByCondition } from "../services/trigger.service";
@@ -293,6 +293,48 @@ function determineRoute(
   return { fbaAccept, mfAccept };
 }
 
+export const searchCatalogHandler = async (req: Request, res: Response) => {
+  try {
+    const { keywords } = req.body;
+
+    const spProduct = await spApiService.searchCatalogByKeywords(keywords);
+
+    const items = spProduct.items;
+
+    const searchResult = items.map((item: any) => {
+      const asin = item.asin;
+      const attributes = item.attributes || {};
+      const imagesList = Array.isArray(item.images) ? item.images : [];
+      const salesRanksList = Array.isArray(item.salesRanks) ? item.salesRanks : [];
+
+      const title = attributes.item_name?.[0]?.value;
+      const itemType = attributes.item_type_keyword?.[0]?.value;
+
+      const displayGroupRank = salesRanksList?.[0]?.displayGroupRanks?.[0];
+      const category = formatCategory(displayGroupRank?.websiteDisplayGroup ?? itemType);
+      const salesRank = displayGroupRank?.rank || 0;
+      const image = imagesList?.[0]?.images?.[0]?.link;
+      return {
+        asin,
+        title,
+        category,
+        salesRank,
+        image
+      }
+    })
+
+    return res.status(200).json({
+      result: true,
+      searchResult,
+    });
+  } catch (error: any) {
+    console.error("Search catalog error:", error);
+    return res.status(500).json({
+      result: false,
+      error: "Internal server error",
+    });
+  }
+}
 
 export const createScanHandler = async (req: AuthRequest, res: Response) => {
   try {
@@ -308,6 +350,13 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
     }
 
     const spProduct = await spApiService.lookupProduct(barcode);
+
+    if (spProduct?.numberOfResults === 0) {
+      return res.status(404).json({
+        result: false,
+        error: "Product not found",
+      });
+    }
 
     if (spProduct?.numberOfResults === 0) {
       return res.status(404).json({

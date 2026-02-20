@@ -12,32 +12,13 @@ export class Preference extends Model {
     @JoinColumn({ name: 'userId' })
     user: User;
 
-    @ManyToOne(() => Sound, (sound) => sound.fbaPreferences)
-    @JoinColumn({ name: 'fbaSoundId' })
-    fbaSound: Sound;
+    @Column({ type: 'varchar', length: 255, nullable: true })
+    fbaSound: string;
 
-    @ManyToOne(() => Sound, (sound) => sound.mfPreferences)
-    @JoinColumn({ name: 'mfSoundId' })
-    mfSound: Sound;
+    @Column({ type: 'varchar', length: 255, nullable: true })
+    mfSound: string;
 
-    @ManyToOne(() => Sound, (sound) => sound.sbybPreferences)
-    @JoinColumn({ name: 'sbybSoundId' })
-    sbybSound: Sound;
-
-    @ManyToOne(() => Sound, (sound) => sound.ziffitPreferences)
-    @JoinColumn({ name: 'ziffitSoundId' })
-    ziffitSound: Sound;
-
-    @ManyToOne(() => Sound, (sound) => sound.riPreferences)
-    @JoinColumn({ name: 'riSoundId' })
-    riSound: Sound;
-
-    @ManyToOne(() => Sound, (sound) => sound.rejectPreferences)
-    @JoinColumn({ name: 'rejectSoundId' })
-    rejectSound: Sound;
-
-    @ManyToOne(() => Sound, (sound) => sound.noResultPreferences)
-    @JoinColumn({ name: 'noResultSoundId' })
-    noResultSound: Sound;
+    @Column({ type: 'varchar', length: 255, nullable: true })
+    rejectSound: string;
 
 }
