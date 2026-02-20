@@ -88,8 +88,6 @@ export type targetPriceInput = {
   buyBoxNew: number;
   amazonPrice?: number;
   route: "FBA" | "MF";
-  offersCount?: number;
-  fbaOffersCount?: number;
 };
 
 export type CapEntry = { name: string; value: number; applied: boolean; reason: string };
@@ -119,25 +117,27 @@ function refCap(
 }
 
 export function determineTargetPrice(input: targetPriceInput): number {
-  const { settings, fbaPrices, prices, offers, buyBoxPrice, amazonPrice, lowestNewPrice, buyBoxNew, route, fbaOffersCount, offersCount } = input;
+  const { settings, fbaPrices, prices, offers, buyBoxPrice, amazonPrice, lowestNewPrice, buyBoxNew, route } = input;
 
   const fbaLen = fbaPrices?.length ?? 0;
   const pricesLen = prices.length ?? 0;
 
+  let fbaSlot = -1;
+  let slot = -1;
+
+  if (settings.fbaSlot !== undefined && settings.fbaSlot !== null && settings.fbaSlot > 0) {
+    fbaSlot = settings.fbaSlot > fbaLen ? fbaLen - 1 : settings.fbaSlot - 1;
+  }
+  if (settings.slot !== undefined && settings.slot !== null && settings.slot > 0) {
+    slot = settings.slot > pricesLen ? pricesLen - 1 : settings.slot - 1;
+  }
+
   let initialPrice = 0;
   if (route === "FBA") {
-    if (fbaOffersCount !== undefined && fbaOffersCount !== null) {
-      if (settings.fbaSlot !== undefined && settings.fbaSlot !== null && settings.fbaSlot > 0 && fbaOffersCount >= settings.fbaSlot) {
-        const fbaSlot = settings.fbaSlot > fbaLen ? fbaLen - 1 : settings.fbaSlot - 1;
-        initialPrice = fbaPrices?.[fbaSlot] ?? 0;
-      }
-    }
-
-    if (initialPrice === 0 && offersCount !== undefined && offersCount !== null) {
-      if (settings.slot !== undefined && settings.slot !== null && settings.slot > 0 && offersCount >= settings.slot) {
-        const slot = settings.slot > pricesLen ? pricesLen - 1 : settings.slot - 1;
-        initialPrice = prices?.[slot] ?? 0;
-      }
+    if (fbaSlot !== -1) {
+      initialPrice = fbaPrices?.[fbaSlot] ?? 0;
+    } else if (slot !== -1) {
+      initialPrice = prices?.[slot] ?? 0;
     }
 
     let priceAfterBBCompare = initialPrice;
@@ -182,11 +182,8 @@ export function determineTargetPrice(input: targetPriceInput): number {
     const targetPrice = Math.max(0, Math.round(current * 100) / 100);
     return targetPrice;
   } else {
-    if (offersCount !== undefined && offersCount !== null) {
-      if (settings.slot !== undefined && settings.slot !== null && settings.slot > 0 && offersCount >= settings.slot) {
-        const slot = settings.slot > pricesLen ? pricesLen - 1 : settings.slot - 1;
-        initialPrice = prices?.[slot] ?? 0;
-      }
+    if (slot !== -1) {
+      initialPrice = prices?.[slot] ?? 0;
     }
 
     let amazonCap: number = Infinity;
@@ -219,9 +216,7 @@ function selectFBATargetPrice(
   buyBoxPrice: number,
   lowestNewPrice: number,
   buyBoxNew: number,
-  amazonPrice?: number,
-  fbaOffersCount?: number,
-  offersCount?: number
+  amazonPrice?: number
 ): number {
   const t = findTriggerByRank(fbaConfig, salesRank);
   if (!t) return 0;
@@ -245,9 +240,7 @@ function selectFBATargetPrice(
     lowestNewPrice,
     buyBoxNew,
     amazonPrice,
-    route: "FBA",
-    fbaOffersCount,
-    offersCount
+    route: "FBA"
   });
 }
 
@@ -258,8 +251,7 @@ function selectMFTargetPrice(
   buyBoxPrice: number,
   lowestNewPrice: number,
   buyBoxNew: number,
-  amazonPrice?: number,
-  offersCount?: number,
+  amazonPrice?: number
 ): number {
   const t = findTriggerByRank(mfConfig, salesRank);
   if (!t) return 0;
@@ -275,8 +267,7 @@ function selectMFTargetPrice(
     lowestNewPrice,
     buyBoxNew,
     amazonPrice,
-    route: "MF",
-    offersCount
+    route: "MF"
   });
 }
 
@@ -534,8 +525,8 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
 
       const buyBoxPrice = condition === "new" ? buyBoxNew : buyBoxUsed;
 
-      fbaTargetPrice = selectFBATargetPrice(fbaConfig, salesRank, fbaPricesList, pricesList, lowestOffers, buyBoxPrice, lowestNew, buyBoxNew, amazonPrice, fbaOffersCount, offersCount);
-      mfTargetPrice = selectMFTargetPrice(mfConfig, salesRank, pricesList, buyBoxPrice, lowestNew, buyBoxNew, amazonPrice, offersCount);
+      fbaTargetPrice = selectFBATargetPrice(fbaConfig, salesRank, fbaPricesList, pricesList, lowestOffers, buyBoxPrice, lowestNew, buyBoxNew, amazonPrice);
+      mfTargetPrice = selectMFTargetPrice(mfConfig, salesRank, pricesList, buyBoxPrice, lowestNew, buyBoxNew, amazonPrice);
 
     }
 
