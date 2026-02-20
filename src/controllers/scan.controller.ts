@@ -516,7 +516,6 @@ export const createScanHandler = async (req: AuthRequest, res: Response) => {
         avgOf3
       }
 
-      const offersCount = condition === "new" ? fbaNew + mfNew : fbaUsed + mfUsed + collectible;
       const fbaOffersCount = condition === "new" ? fbaNew : fbaUsed;
 
       if (fbaOffersCount > 0 && fbaPricesList.length === 0) {
