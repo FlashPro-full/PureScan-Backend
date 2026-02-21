@@ -186,7 +186,7 @@ export class SPApiService {
       if (options.locale) params.locale = options.locale;
       if (options.keywordsLocale) params.keywordsLocale = options.keywordsLocale;
       if (options.brandNames?.length) params.brandNames = options.brandNames.join(',');
-      if (options.classificationIds?.length) params.classificationIds = options.classificationIds.join(',') ?? "283155, 5174, 130, 468642";
+      if (options.classificationIds?.length) params.classificationIds = options.classificationIds.join(',');
       const response = await this.client.get('/catalog/2022-04-01/items', {
         params,
       });

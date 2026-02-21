@@ -2,19 +2,26 @@ import { Request, Response } from "express";
 import { AuthRequest } from "../middleware/auth.middleware";
 import { saveScan, findScanListByUserId, deleteScanById, findScanListPaginationByUserId } from "../services/scan.service";
 import { findTriggersByCondition } from "../services/trigger.service";
-import { spApiService } from "../third-party/spapi.service";
+import { spApiService, CATALOG_CLASSIFICATION_IDS_US } from "../third-party/spapi.service";
 import { getProductCondition } from "../config";
 import { ModuleEnum } from "../entities/trigger.entity";
 
 function formatCategory(category: string): string {
-  if (category.includes("book")) {
+  if (category === null || category === undefined) return "Others";
+  if (category.toLowerCase().includes("book")) {
     return "Book";
-  } else if (category.includes("dvd")) {
+  } else if (category.toLowerCase().includes("dvd") || category.toLowerCase().includes("movie")) {
     return "DVD";
-  } else if (category.includes("music")) {
+  } else if (category.toLowerCase().includes("music")) {
     return "Music";
-  } else if (category.includes("video_games")) {
+  } else if (category.toLowerCase().includes("video_games")) {
     return "Video Games";
+  } else if (category.toLowerCase().includes("tv")) {
+    return "TV";
+  } else if (category.toLowerCase().includes("blu")) {
+    return "Blu-ray";
+  } else if (category.toLowerCase().includes("projection")) {
+    return "TV";
   }
 
   return "Others";
@@ -25,7 +32,7 @@ function getTriggerCategory(displayCategory: string): string | null {
   if (s.includes("book")) return "Books";
   if (s.includes("music") || s === "cd") return "Music";
   if (s.includes("video game") || s.includes("videogame")) return "VideoGames";
-  if (s.includes("video") || s.includes("dvd") || s.includes("blu")) return "Videos";
+  if (s.includes("video") || s.includes("dvd") || s.includes("blu") || s.includes("movie") || s.includes("tv")) return "Videos";
   return null;
 }
 
@@ -297,7 +304,9 @@ export const searchCatalogHandler = async (req: Request, res: Response) => {
   try {
     const { keywords } = req.body;
 
-    const spProduct = await spApiService.searchCatalogByKeywords(keywords);
+    const spProduct = await spApiService.searchCatalogByKeywords(keywords, undefined, {
+      classificationIds: Object.values(CATALOG_CLASSIFICATION_IDS_US),
+    });
 
     const items = spProduct.items;
 
@@ -306,12 +315,15 @@ export const searchCatalogHandler = async (req: Request, res: Response) => {
       const attributes = item.attributes || {};
       const imagesList = Array.isArray(item.images) ? item.images : [];
       const salesRanksList = Array.isArray(item.salesRanks) ? item.salesRanks : [];
+      const productTypesList = Array.isArray(item.productTypes) ? item.productTypes : [];
 
       const title = attributes.item_name?.[0]?.value;
       const itemType = attributes.item_type_keyword?.[0]?.value;
+      const productType = productTypesList?.[0]?.productType;
 
       const displayGroupRank = salesRanksList?.[0]?.displayGroupRanks?.[0];
-      const category = formatCategory(displayGroupRank?.websiteDisplayGroup ?? itemType);
+      const category = formatCategory(displayGroupRank?.websiteDisplayGroup ?? itemType ?? productType);
+      
       const salesRank = displayGroupRank?.rank || 0;
       const image = imagesList?.[0]?.images?.[0]?.link;
       return {
@@ -321,7 +333,7 @@ export const searchCatalogHandler = async (req: Request, res: Response) => {
         salesRank,
         image
       }
-    })
+    });
 
     return res.status(200).json({
       result: true,
