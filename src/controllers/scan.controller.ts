@@ -15,7 +15,7 @@ function formatCategory(category: string): string {
   } else if (category.toLowerCase().includes("music")) {
     return "Music";
   } else if (category.toLowerCase().includes("video_games")) {
-    return "Video Games";
+    return "Video Game";
   } else if (category.toLowerCase().includes("tv")) {
     return "TV";
   } else if (category.toLowerCase().includes("blu")) {
