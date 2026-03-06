@@ -1,5 +1,6 @@
-import axios, { AxiosInstance } from 'axios';
+import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 import dotenv from 'dotenv';
+import { with429Retry, withSpApiThrottle } from './sp-api-queue';
 
 dotenv.config();
 
@@ -61,6 +62,13 @@ export const CATALOG_CLASSIFICATION_IDS_US = {
 
 export type CatalogCategory = keyof typeof CATALOG_CLASSIFICATION_IDS_US;
 
+const LOOKUP_CACHE_TTL_MS = 5 * 60 * 1000;
+
+interface LookupCacheEntry {
+  data: any;
+  expiresAt: number;
+}
+
 export class SPApiService {
   private client: AxiosInstance;
   private accessToken: string | null = null;
@@ -68,6 +76,14 @@ export class SPApiService {
   private clientId: string;
   private clientSecret: string;
   private refreshToken: string;
+  private lookupCache = new Map<string, LookupCacheEntry>();
+
+  private evictExpiredLookupCacheEntries(): void {
+    const now = Date.now();
+    for (const [key, entry] of this.lookupCache.entries()) {
+      if (entry.expiresAt <= now) this.lookupCache.delete(key);
+    }
+  }
 
   constructor() {
     this.clientId = process.env.SP_API_CLIENT_ID || "";
@@ -91,6 +107,12 @@ export class SPApiService {
       }
       return config;
     });
+  }
+
+  private async request<T>(config: AxiosRequestConfig): Promise<T> {
+    return withSpApiThrottle(() =>
+      with429Retry(() => this.client.request(config).then((res) => res.data as T))
+    );
   }
 
   private async refreshAccessToken(): Promise<void> {
@@ -131,9 +153,12 @@ export class SPApiService {
 
   async getMarketplaceParticipations(): Promise<any[]> {
     try {
-      const res = await this.client.get<marketplaceResponse>('sellers/v1/marketplaceParticipations');
-      if (res?.data?.payload && Array.isArray(res.data.payload) && res.data.payload.length > 0) {
-        return res.data.payload;
+      const data = await this.request<marketplaceResponse>({
+        method: 'GET',
+        url: 'sellers/v1/marketplaceParticipations',
+      });
+      if (data?.payload && Array.isArray(data.payload) && data.payload.length > 0) {
+        return data.payload;
       }
       return [];
     } catch (error: any) {
@@ -143,9 +168,19 @@ export class SPApiService {
   }
 
   async lookupProduct(barcode: string, marketplaceId: string = 'ATVPDKIKX0DER'): Promise<any> {
+    const cacheKey = `lookup:${barcode}:${marketplaceId}`;
+    const ttlMs = Number(process.env.SP_API_LOOKUP_CACHE_TTL_MS) || LOOKUP_CACHE_TTL_MS;
+    const now = Date.now();
+    const cached = this.lookupCache.get(cacheKey);
+    if (cached) {
+      if (cached.expiresAt > now) return cached.data;
+      this.lookupCache.delete(cacheKey);
+    }
     try {
       const identifiersType = getIdentifiersTypeFromBarcode(barcode);
-      const response = await this.client.get('/catalog/2022-04-01/items', {
+      const data = await this.request<any>({
+        method: 'GET',
+        url: '/catalog/2022-04-01/items',
         params: {
           marketplaceIds: marketplaceId,
           identifiers: barcode,
@@ -153,7 +188,11 @@ export class SPApiService {
           includedData: 'attributes,productTypes,images,salesRanks, dimensions',
         },
       });
-      return response.data;
+      if (data != null) {
+        this.evictExpiredLookupCacheEntries();
+        this.lookupCache.set(cacheKey, { data, expiresAt: now + ttlMs });
+      }
+      return data;
     } catch (error: any) {
       if (error.response?.status === 404) {
         return null;
@@ -187,10 +226,11 @@ export class SPApiService {
       if (options.keywordsLocale) params.keywordsLocale = options.keywordsLocale;
       if (options.brandNames?.length) params.brandNames = options.brandNames.join(',');
       if (options.classificationIds?.length) params.classificationIds = options.classificationIds.join(',');
-      const response = await this.client.get('/catalog/2022-04-01/items', {
+      return await this.request<any>({
+        method: 'GET',
+        url: '/catalog/2022-04-01/items',
         params,
       });
-      return response.data;
     } catch (error: any) {
       if (error.response?.status === 404) return null;
       throw error;
@@ -199,15 +239,15 @@ export class SPApiService {
 
   async getCompetitivePricing(asin: string, marketplaceId: string = 'ATVPDKIKX0DER'): Promise<any> {
     try {
-      const response = await this.client.get('/products/pricing/v0/competitivePrice', {
+      return await this.request<any>({
+        method: 'GET',
+        url: '/products/pricing/v0/competitivePrice',
         params: {
           MarketplaceId: marketplaceId,
           Asins: asin,
           ItemType: 'Asin'
         }
       });
-
-      return response.data;
     } catch (error: any) {
       if (error.response?.status === 404) {
         return null;
@@ -222,13 +262,14 @@ export class SPApiService {
     marketplaceId: string = 'ATVPDKIKX0DER'
   ): Promise<any> {
     try {
-      const response = await this.client.get(`/products/pricing/v0/items/${asin}/offers`, {
+      return await this.request<any>({
+        method: 'GET',
+        url: `/products/pricing/v0/items/${asin}/offers`,
         params: {
           MarketplaceId: marketplaceId,
           ItemCondition: itemCondition
         },
       });
-      return response.data;
     } catch (error: any) {
       if (error.response?.status === 404) return null;
       throw error;
@@ -242,20 +283,23 @@ export class SPApiService {
     marketplaceId: string = 'ATVPDKIKX0DER'
   ): Promise<any> {
     try {
-      const response = await this.client.post(`/products/fees/v0/items/${asin}/feesEstimate`, {
-        FeesEstimateRequest: {
-          MarketplaceId: marketplaceId,
-          IsAmazonFulfilled: true,
-          PriceToEstimateFees: {
-            ListingPrice: { CurrencyCode: 'USD', Amount: price },
-            Shipping: { CurrencyCode: 'USD', Amount: 0 },
-            Points: { PointsNumber: 0, PointsMonetaryValue: { CurrencyCode: 'USD', Amount: 0 } },
+      return await this.request<any>({
+        method: 'POST',
+        url: `/products/fees/v0/items/${asin}/feesEstimate`,
+        data: {
+          FeesEstimateRequest: {
+            MarketplaceId: marketplaceId,
+            IsAmazonFulfilled: true,
+            PriceToEstimateFees: {
+              ListingPrice: { CurrencyCode: 'USD', Amount: price },
+              Shipping: { CurrencyCode: 'USD', Amount: 0 },
+              Points: { PointsNumber: 0, PointsMonetaryValue: { CurrencyCode: 'USD', Amount: 0 } },
+            },
+            Identifier: barcode,
+            OptionalFulfillmentProgram: 'FBA_CORE',
           },
-          Identifier: barcode,
-          OptionalFulfillmentProgram: 'FBA_CORE',
         },
       });
-      return response.data;
     } catch (error: any) {
       if (error.response?.status === 404) return null;
       throw error;
@@ -270,19 +314,22 @@ export class SPApiService {
     marketplaceId: string = 'ATVPDKIKX0DER'
   ): Promise<any> {
     try {
-      const response = await this.client.post(`/products/fees/v0/items/${asin}/feesEstimate`, {
-        FeesEstimateRequest: {
-          MarketplaceId: marketplaceId,
-          IsAmazonFulfilled: false,
-          PriceToEstimateFees: {
-            ListingPrice: { CurrencyCode: 'USD', Amount: price },
-            Shipping: { CurrencyCode: 'USD', Amount: shipping },
-            Points: { PointsNumber: 0, PointsMonetaryValue: { CurrencyCode: 'USD', Amount: 0 } },
+      return await this.request<any>({
+        method: 'POST',
+        url: `/products/fees/v0/items/${asin}/feesEstimate`,
+        data: {
+          FeesEstimateRequest: {
+            MarketplaceId: marketplaceId,
+            IsAmazonFulfilled: false,
+            PriceToEstimateFees: {
+              ListingPrice: { CurrencyCode: 'USD', Amount: price },
+              Shipping: { CurrencyCode: 'USD', Amount: shipping },
+              Points: { PointsNumber: 0, PointsMonetaryValue: { CurrencyCode: 'USD', Amount: 0 } },
+            },
+            Identifier: barcode,
           },
-          Identifier: barcode,
         },
       });
-      return response.data;
     } catch (error: any) {
       if (error.response?.status === 404) return null;
       throw error;
@@ -329,8 +376,11 @@ export class SPApiService {
           IdValue: asin,
         },
       ];
-      const response = await this.client.post('/products/fees/v0/feesEstimate', body);
-      const results = response.data;
+      const results = await this.request<any[]>({
+        method: 'POST',
+        url: '/products/fees/v0/feesEstimate',
+        data: body,
+      });
       return {
         fba: results[0],
         mf: results[1],

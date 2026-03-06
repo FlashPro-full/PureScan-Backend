@@ -18,6 +18,7 @@ cp .env.example .env
 - `DATABASE_URL` - PostgreSQL connection string
 - `SP_API_CLIENT_ID` - Amazon SP-API Client ID
 - `SP_API_CLIENT_SECRET` - Amazon SP-API Client Secret
+- `SP_API_REFRESH_TOKEN` - Amazon SP-API Refresh Token (if using SP-API)
 - `JWT_SECRET` - Secret key for JWT tokens
 - `SMTP_USER` or `EMAIL_USER` - Email address for sending emails (Gmail/Outlook)
 - `SMTP_PASS` or `EMAIL_PASSWORD` - App password for email account
@@ -76,4 +77,11 @@ Uses TypeORM with PostgreSQL. Entities are auto-synced in development mode.
 ## Environment Variables
 
 See `.env.example` for required variables.
+
+### SP-API rate limiting (conveyor / high-speed scans)
+
+To avoid 429 errors when many barcode requests arrive (e.g. conveyor belt), the backend throttles SP-API calls and retries on 429. Optional:
+
+- `SP_API_THROTTLE_DELAY_MS` - Min delay between SP-API requests in ms (default: 600). Increase if you still see 429s.
+- `SP_API_LOOKUP_CACHE_TTL_MS` - Cache TTL for barcode lookups in ms (default: 300000 = 5 min). Same barcode within TTL is served from cache.
 
